@@ -1,0 +1,13 @@
+{
+  "name": "@gq/widget-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared, dependency-free widget config types, defaults and condition engine. Imported by the admin app and by every UI extension, so keep it tiny (checkout bundles are capped at 64 KB).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false
+}

@@ -1,0 +1,30 @@
+# Checkout countdown timer.
+# Config (duration, copy, display rules) is NOT set here: the app's admin page
+# writes it to the app-owned shop metafield declared below, so changes go live
+# without redeploying the extension.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Checkout Countdown"
+handle = "checkout-countdown"
+type = "ui_extension"
+
+# Merchant places the block anywhere in the checkout editor.
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.block.render"
+
+# Fixed placement directly under the checkout header (same module, shared timer).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.header.render-after"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_countdown"
+
+[extensions.capabilities]
+# Storefront API: product tags / collections for display rules.
+api_access = true
+# App backend: customer-tag rules (requires approval in the Partner/Dev Dashboard).
+network_access = true
