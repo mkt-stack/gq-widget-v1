@@ -1,13 +1,15 @@
 # GQ Widgets — custom checkout & customer-account widgets for gqsize.com.
-# Linked app: gq-widget-v1 (Dev Dashboard). application_url and redirect URLs
-# are still Shopify's placeholder until the app is hosted (see README → Hosting).
+# Linked app: gq-widget-v1 (Dev Dashboard). Hosted on Railway:
+# project modest-ambition → service gq-widget-v1 (mkt@suparagroup.com).
 client_id = "7aab72fb41edd5d4aecf3f24940be5f9"
 name = "gq-widget-v1"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://gq-widget-v1-production.up.railway.app"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+# Keep false: dev uses this same app, and `true` would replace the production
+# URL with the temporary dev tunnel URL.
+automatically_update_urls_on_dev = false
 
 [access_scopes]
 # read_products  – product/collection pickers for display conditions
@@ -15,7 +17,7 @@ automatically_update_urls_on_dev = true
 scopes = "read_products,read_customers"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://gq-widget-v1-production.up.railway.app/auth/callback" ]
 
 [webhooks]
 api_version = "2026-07"

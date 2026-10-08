@@ -71,9 +71,28 @@ The condition engine short-circuits: an `any` rule set can pass, and an `all` ru
 
 The `shopify` CLI in `devDependencies` (4.x) is the one `npm run dev` uses. Your global CLI is 3.93 and is not needed.
 
-### Hosting
+### Hosting (Railway)
 
-The app server must be reachable over HTTPS, because checkout calls it for customer conditions. `SHOPIFY_APP_URL` is written into each widget config on save. If the URL changes (a new dev tunnel, or a production domain), the dashboard shows an **App URL changed → Update widgets** banner. A `Dockerfile` is included (same pattern as gq-member-club). Set `DATABASE_URL`/the Prisma provider for production; SQLite is the dev default.
+Production runs on Railway: project **modest-ambition** → service **gq-widget-v1**, under the mkt@suparagroup.com account. It is built from this repo's `Dockerfile` on every push to `main`.
+
+- **URL:** https://gq-widget-v1-production.up.railway.app. This matches `application_url` in `shopify.app.toml`.
+- **Service variables:**
+  - `SHOPIFY_API_KEY`: the app's client ID
+  - `SHOPIFY_API_SECRET`
+  - `SHOPIFY_APP_URL`: the URL above
+  - `SCOPES`: same as the toml
+  - `DATABASE_URL`: `${{Postgres.DATABASE_URL}}`
+- **Database:** Prisma uses the project's Postgres, which only stores sessions. Migrations run at startup (`npm run docker-start`).
+- **If the URL changes:**
+  1. Update `SHOPIFY_APP_URL`, plus `application_url` and `redirect_urls` in the toml.
+  2. Run `npm run deploy`.
+  3. Click **Update widgets** on the app dashboard.
+
+### Local development
+
+`npm run dev` needs a Postgres `DATABASE_URL` in `.env` (gitignored). Use a local Postgres, or a separate Railway database. Don't use production's, because `dev` would write its sessions there.
+
+`automatically_update_urls_on_dev` is `false` on purpose. Dev uses the same app, and leaving it on would replace the production URL with the tunnel URL.
 
 ## Adding a widget
 
