@@ -1,8 +1,9 @@
 # GQ Widgets — custom checkout & customer-account widgets for gqsize.com.
-# `client_id`, `name`, `application_url` and redirect URLs are filled in by
-# `npm run config:link` (creates/links the app in the Shopify Dev Dashboard).
-client_id = ""
-name = "GQ Widgets"
+# Linked app: gq-widget-v1 (Dev Dashboard). application_url and redirect URLs
+# are still Shopify's placeholder until the app is hosted (see README → Hosting).
+client_id = "7aab72fb41edd5d4aecf3f24940be5f9"
+name = "gq-widget-v1"
+application_url = "https://shopify.dev/apps/default-app-home"
 embedded = true
 
 [build]
@@ -12,6 +13,9 @@ automatically_update_urls_on_dev = true
 # read_products  – product/collection pickers for display conditions
 # read_customers – customer-tag conditions (backend lookup; protected customer data)
 scopes = "read_products,read_customers"
+
+[auth]
+redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
 
 [webhooks]
 api_version = "2026-07"

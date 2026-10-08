@@ -7,6 +7,7 @@ api_version = "2026-07"
 [[extensions]]
 name = "GQ Checkout Countdown"
 handle = "checkout-countdown"
+uid = "85c4944b-ec50-bf00-948a-10a49d07d710b6df7054"
 type = "ui_extension"
 
 # Merchant places the block anywhere in the checkout editor.
