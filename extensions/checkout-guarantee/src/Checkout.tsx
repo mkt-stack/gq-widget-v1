@@ -2,6 +2,7 @@ import "@shopify/ui-extensions/preact";
 import { render } from "preact";
 import { useMemo } from "preact/hooks";
 import {
+  GUARANTEE_ICON_SIZES,
   GUARANTEE_METAFIELD_KEY,
   conditionRequirements,
   evaluateRules,
@@ -25,7 +26,11 @@ export default function extension() {
   render(<GuaranteeRow />, document.body);
 }
 
-/** Up to 3 equal columns, each a centred icon + title + optional subtitle. */
+/**
+ * Up to 3 equal, top-aligned columns. Each is a vertical stack: a fixed-size
+ * square slot (Shopify icon or uploaded image), then title, then subtitle, so
+ * titles line up across columns whatever the icon.
+ */
 function GuaranteeRow() {
   const config = useWidgetConfig(shopify.appMetafields.value, GUARANTEE_METAFIELD_KEY, normalizeGuaranteeConfig);
   const needs = useMemo(() => (config ? conditionRequirements(config.rules) : null), [config]);
@@ -44,13 +49,26 @@ function GuaranteeRow() {
   if (evaluateRules(config.rules, ctx) !== true) return null;
 
   const language = shopify.localization.language.value.isoCode;
+  const size = GUARANTEE_ICON_SIZES[config.iconSize];
+  const slot = `${size.px}px` as const;
   return (
-    <s-grid gridTemplateColumns={config.items.map(() => "1fr").join(" ")} gap="base" paddingBlock="small-200">
+    <s-grid
+      gridTemplateColumns={config.items.map(() => "1fr").join(" ")}
+      gap="base"
+      alignItems="start"
+      paddingBlock="small-200"
+    >
       {config.items.map((item) => {
         const { title, subtitle } = resolveGuaranteeText(item, language);
         return (
-          <s-stack key={item.id} alignItems="center" gap="small-300">
-            <s-icon type={item.icon} />
+          <s-stack key={item.id} direction="block" alignItems="center" gap="small-200">
+            <s-stack inlineSize={slot} blockSize={slot} alignItems="center" justifyContent="center">
+              {item.media === "image" ? (
+                <s-image src={item.imageUrl} alt="" inlineSize="fill" aspectRatio="1" objectFit="contain" />
+              ) : (
+                <s-icon type={item.icon} size={size.icon} />
+              )}
+            </s-stack>
             {title ? <s-text type="strong">{title}</s-text> : null}
             {subtitle ? (
               <s-text type="small" color="subdued">

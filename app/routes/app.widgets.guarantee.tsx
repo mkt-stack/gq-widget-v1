@@ -9,6 +9,7 @@ import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   DEFAULT_GUARANTEE_CONFIG,
+  GUARANTEE_ICON_SIZES,
   GUARANTEE_ICONS,
   GUARANTEE_LIMITS,
   GUARANTEE_METAFIELD_KEY,
@@ -17,11 +18,13 @@ import {
   resolveGuaranteeText,
   type GuaranteeConfig,
   type GuaranteeIcon,
+  type GuaranteeIconSize,
   type GuaranteeItem,
 } from "@gq/widget-core";
 import { authenticate } from "../shopify.server";
 import { appEndpoint, readWidgetConfigs, writeWidgetConfig } from "../widgets/metafields.server";
 import { ConditionBuilder } from "../components/ConditionBuilder";
+import { ImageUpload } from "../components/ImageUpload";
 import { ranked } from "../components/RankedCard";
 import { inputChecked, inputValue } from "../components/form-utils";
 
@@ -76,7 +79,10 @@ export default function GuaranteeSettings() {
   const setEn = (item: GuaranteeItem, field: "title" | "subtitle", value: string) =>
     setItem(item.id, { translations: { ...item.translations, en: { ...item.translations.en, [field]: value } } });
   const addItem = () =>
-    setItems([...config.items, { id: ranked.newId(), icon: "check-circle", title: "", subtitle: "", translations: {} }]);
+    setItems([
+      ...config.items,
+      { id: ranked.newId(), media: "icon", icon: "check-circle", imageUrl: "", title: "", subtitle: "", translations: {} },
+    ]);
 
   const save = () => fetcher.submit({ config } as never, { method: "POST", encType: "application/json" });
   const discard = () => setConfig(saved);
@@ -108,37 +114,40 @@ export default function GuaranteeSettings() {
       )}
 
       <s-section heading="Status">
-        <s-switch
-          label="Show guarantee row in checkout"
-          details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
-          checked={config.enabled}
-          onChange={(e) => setConfig((c) => ({ ...c, enabled: inputChecked(e) }))}
-        />
+        <s-stack gap="base">
+          <s-switch
+            label="Show guarantee row in checkout"
+            details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
+            checked={config.enabled}
+            onChange={(e) => setConfig((c) => ({ ...c, enabled: inputChecked(e) }))}
+          />
+          <s-select
+            label="Icon size"
+            details="Applies to Shopify icons and uploaded images in every column."
+            value={config.iconSize}
+            onChange={(e) => setConfig((c) => ({ ...c, iconSize: inputValue(e) as GuaranteeIconSize }))}
+          >
+            {(Object.keys(GUARANTEE_ICON_SIZES) as GuaranteeIconSize[]).map((s) => (
+              <s-option key={s} value={s}>
+                {`${GUARANTEE_ICON_SIZES[s].label} (${GUARANTEE_ICON_SIZES[s].px}px)`}
+              </s-option>
+            ))}
+          </s-select>
+        </s-stack>
       </s-section>
 
       <s-section heading="Columns">
         <s-stack gap="base">
           <s-paragraph color="subdued">
-            Up to {GUARANTEE_LIMITS.maxItems} columns, shown side by side with the icon and text centred. Keep text short
-            (about 2–3 words per line) so it fits on phones.
+            Up to {GUARANTEE_LIMITS.maxItems} columns side by side. In each column the icon, title and subtitle are
+            stacked and centred, and every icon sits in the same-size slot so titles line up. Keep text short (about 2–3
+            words per line) so it fits on phones.
           </s-paragraph>
           {config.items.map((item, i) => (
             <s-box key={item.id} padding="base" border="base" borderRadius="base">
               <s-stack gap="base">
-                <s-grid gridTemplateColumns="auto 1fr auto" gap="small-200" alignItems="center">
+                <s-grid gridTemplateColumns="1fr auto" gap="small-200" alignItems="center">
                   <s-badge>{`Column ${i + 1}`}</s-badge>
-                  <s-select
-                    label="Icon"
-                    labelAccessibilityVisibility="exclusive"
-                    value={item.icon}
-                    onChange={(e) => setItem(item.id, { icon: inputValue(e) as GuaranteeIcon })}
-                  >
-                    {ICON_OPTIONS.map(([value, label]) => (
-                      <s-option key={value} value={value}>
-                        {label}
-                      </s-option>
-                    ))}
-                  </s-select>
                   <s-stack direction="inline" gap="small-100">
                     <s-button icon="arrow-left" variant="tertiary" accessibilityLabel="Move left" disabled={i === 0} onClick={() => setItems(ranked.move(config.items, i, -1))} />
                     <s-button
@@ -151,6 +160,45 @@ export default function GuaranteeSettings() {
                     <s-button icon="delete" variant="tertiary" tone="critical" accessibilityLabel="Delete column" onClick={() => setItems(ranked.remove(config.items, item.id))} />
                   </s-stack>
                 </s-grid>
+                <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                  <s-select
+                    label="Icon type"
+                    value={item.media}
+                    onChange={(e) => setItem(item.id, { media: inputValue(e) === "image" ? "image" : "icon" })}
+                  >
+                    <s-option value="icon">Shopify icon</s-option>
+                    <s-option value="image">Uploaded image</s-option>
+                  </s-select>
+                  {item.media === "icon" ? (
+                    <s-select
+                      label="Icon"
+                      value={item.icon}
+                      onChange={(e) => setItem(item.id, { icon: inputValue(e) as GuaranteeIcon })}
+                    >
+                      {ICON_OPTIONS.map(([value, label]) => (
+                        <s-option key={value} value={value}>
+                          {label}
+                        </s-option>
+                      ))}
+                    </s-select>
+                  ) : (
+                    <s-select
+                      label="Fallback icon"
+                      details="Shown if no image is set."
+                      value={item.icon}
+                      onChange={(e) => setItem(item.id, { icon: inputValue(e) as GuaranteeIcon })}
+                    >
+                      {ICON_OPTIONS.map(([value, label]) => (
+                        <s-option key={value} value={value}>
+                          {label}
+                        </s-option>
+                      ))}
+                    </s-select>
+                  )}
+                </s-grid>
+                {item.media === "image" && (
+                  <ImageUpload url={item.imageUrl} alt={item.title} onChange={(imageUrl) => setItem(item.id, { imageUrl })} />
+                )}
                 <s-grid gridTemplateColumns="1fr 1fr" gap="base">
                   <s-text-field
                     label="Title"
@@ -217,13 +265,20 @@ function GuaranteePreview({ config }: { config: GuaranteeConfig }) {
         <s-text color="subdued">Add a column to preview it.</s-text>
       ) : (
         <s-box padding="small-200" border="base" borderRadius="base">
-          <s-grid gridTemplateColumns={config.items.map(() => "1fr").join(" ")} gap="small-200">
+          <s-grid gridTemplateColumns={config.items.map(() => "1fr").join(" ")} gap="small-200" alignItems="start">
             {config.items.map((item) => {
               const { title, subtitle } = resolveGuaranteeText(item, language);
+              const slot = `${GUARANTEE_ICON_SIZES[config.iconSize].px}px` as const;
               return (
-                <s-stack key={item.id} alignItems="center" gap="small-300">
-                  {/* Admin and checkout share these icon names; cast because the admin set is typed separately. */}
-                  <s-icon type={item.icon as never} />
+                <s-stack key={item.id} direction="block" alignItems="center" gap="small-200">
+                  <s-stack inlineSize={slot} blockSize={slot} alignItems="center" justifyContent="center">
+                    {item.media === "image" ? (
+                      <s-image src={item.imageUrl} alt="" inlineSize="fill" aspectRatio="1" objectFit="contain" />
+                    ) : (
+                      // Admin and checkout share these icon names; cast because the admin set is typed separately.
+                      <s-icon type={item.icon as never} size={config.iconSize === "small" ? "small" : "base"} />
+                    )}
+                  </s-stack>
                   {title && <s-text type="strong">{title}</s-text>}
                   {subtitle && <s-text color="subdued">{subtitle}</s-text>}
                 </s-stack>

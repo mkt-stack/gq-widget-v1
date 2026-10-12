@@ -29,10 +29,24 @@ export interface CountdownVariant extends RankedItem {
   translations: Record<string, Partial<CountdownMessages>>;
 }
 
+/** Visual style per stage. "neutral" is a grey box (checkout banners have no grey tone). */
+export type CountdownStageStyle = "success" | "info" | "warning" | "critical" | "neutral";
+export type CountdownStage = "running" | "warning" | "expired";
+
+export const COUNTDOWN_STAGE_STYLES: Record<CountdownStageStyle, string> = {
+  success: "Green (success)",
+  info: "Blue (info)",
+  warning: "Yellow (warning)",
+  critical: "Red (critical)",
+  neutral: "Grey",
+};
+
 export interface CountdownConfig {
   version: 2;
   enabled: boolean;
   appearance: "compact" | "banner";
+  /** Style for each stage, used by both appearances. */
+  styles: Record<CountdownStage, CountdownStageStyle>;
   /** Ranked, at most `COUNTDOWN_LIMITS.maxVariants`. */
   variants: CountdownVariant[];
   /** App backend origin, written by the admin on save. Needed for customer-tag rules. */
@@ -70,12 +84,31 @@ export const DEFAULT_COUNTDOWN_VARIANT: CountdownVariant = {
   conditions: { match: "all", conditions: [] },
 };
 
+export const DEFAULT_COUNTDOWN_STYLES: CountdownConfig["styles"] = {
+  running: "success",
+  warning: "warning",
+  expired: "neutral",
+};
+
 export const DEFAULT_COUNTDOWN_CONFIG: CountdownConfig = {
   version: 2,
   enabled: false,
-  appearance: "compact",
+  appearance: "banner",
+  styles: DEFAULT_COUNTDOWN_STYLES,
   variants: [DEFAULT_COUNTDOWN_VARIANT],
 };
+
+const isStageStyle = (v: unknown): v is CountdownStageStyle => typeof v === "string" && v in COUNTDOWN_STAGE_STYLES;
+
+function normalizeStyles(raw: unknown): CountdownConfig["styles"] {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_COUNTDOWN_STYLES;
+  return {
+    running: isStageStyle(r.running) ? r.running : d.running,
+    warning: isStageStyle(r.warning) ? r.warning : d.warning,
+    expired: isStageStyle(r.expired) ? r.expired : d.expired,
+  };
+}
 
 const text = (v: unknown, fallback: string) => clampText(v, fallback, COUNTDOWN_LIMITS.maxMessageLength);
 
@@ -129,7 +162,9 @@ export function normalizeCountdownConfig(raw: unknown): CountdownConfig {
   return {
     version: 2,
     enabled: typeof r.enabled === "boolean" ? r.enabled : DEFAULT_COUNTDOWN_CONFIG.enabled,
-    appearance: r.appearance === "banner" ? "banner" : "compact",
+    // Configs saved before `appearance` defaulted to banner keep their choice.
+    appearance: r.appearance === "compact" ? "compact" : r.appearance === "banner" ? "banner" : DEFAULT_COUNTDOWN_CONFIG.appearance,
+    styles: normalizeStyles(r.styles),
     variants,
     endpoint: normalizeEndpoint(r.endpoint),
   };

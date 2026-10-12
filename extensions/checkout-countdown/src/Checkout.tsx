@@ -47,27 +47,32 @@ function Countdown() {
   const { before, after, hasTime } = splitOnTime(message);
   const clock = expired ? "" : formatRemaining(remaining);
 
+  // Each stage has its own style: by default green while running, warning
+  // after the threshold, grey once expired.
+  const style = config.styles[expired ? "expired" : warning ? "warning" : "running"];
+  const grey = style === "neutral";
+  const icon = warning ? "alert-triangle" : "clock";
+
   const body = (
-    <s-paragraph>
+    <s-paragraph tone={config.appearance === "compact" && !grey ? style : "auto"} color={grey ? "subdued" : "base"}>
       {before}
       {clock ? <s-text type="strong">{hasTime ? clock : ` ${clock}`}</s-text> : null}
       {after}
     </s-paragraph>
   );
 
-  if (config.appearance === "banner") {
-    return <s-banner tone={expired || warning ? "critical" : "info"}>{body}</s-banner>;
-  }
+  // Checkout banners have no grey tone, so "neutral" renders as a subdued box.
+  if (config.appearance === "banner" && !grey) return <s-banner tone={style}>{body}</s-banner>;
 
   return (
     <s-box
-      padding="small-200 base"
+      padding={config.appearance === "banner" ? "base" : "small-200 base"}
       border="base"
       borderRadius="base"
-      background={expired || warning ? "subdued" : "transparent"}
+      background={grey ? "subdued" : "transparent"}
     >
       <s-stack direction="inline" gap="small-200" alignItems="center">
-        <s-icon type={expired || warning ? "alert-triangle" : "clock"} size="small" />
+        <s-icon type={icon} tone={grey ? "neutral" : style} size="small" />
         {body}
       </s-stack>
     </s-box>

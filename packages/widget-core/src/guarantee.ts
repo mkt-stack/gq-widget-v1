@@ -2,10 +2,26 @@ import type { DisplayRules } from "./conditions";
 import { normalizeRules } from "./normalize";
 import { clampText, isLanguageCode, normalizeEndpoint, pickLanguage } from "./util";
 
+/** Only https images (Shopify Files gives cdn.shopify.com URLs). */
+export const normalizeImageUrl = (v: unknown) =>
+  typeof v === "string" && /^https:\/\/\S+$/.test(v.trim()) ? v.trim().slice(0, 1000) : "";
+
 /** Trust row under the Pay now button: up to 3 centred columns of icon + text. */
 export const GUARANTEE_METAFIELD_KEY = "widget_guarantee";
 
 export const GUARANTEE_LIMITS = { maxItems: 3, maxTitleLength: 40, maxSubtitleLength: 60 };
+
+export type GuaranteeIconSize = "small" | "medium" | "large";
+
+/**
+ * `icon` is the checkout s-icon size; `px` is the square slot every column's
+ * icon or image sits in, so titles line up across columns.
+ */
+export const GUARANTEE_ICON_SIZES: Record<GuaranteeIconSize, { label: string; icon: "small" | "base" | "large-100"; px: number }> = {
+  small: { label: "Small", icon: "small", px: 20 },
+  medium: { label: "Medium", icon: "base", px: 28 },
+  large: { label: "Large", icon: "large-100", px: 40 },
+};
 
 /** Checkout icons that suit trust signals (all in the 2026-07 checkout icon set). */
 export const GUARANTEE_ICONS = {
@@ -44,7 +60,11 @@ export interface GuaranteeText {
 
 export interface GuaranteeItem extends GuaranteeText {
   id: string;
+  /** Show a Shopify checkout icon, or an uploaded image. */
+  media: "icon" | "image";
   icon: GuaranteeIcon;
+  /** https URL, usually a Shopify Files cdn.shopify.com URL. Used when `media` is "image". */
+  imageUrl: string;
   /** Per-language overrides; blank fields fall back. */
   translations: Record<string, Partial<GuaranteeText>>;
 }
@@ -52,6 +72,7 @@ export interface GuaranteeItem extends GuaranteeText {
 export interface GuaranteeConfig {
   version: 1;
   enabled: boolean;
+  iconSize: GuaranteeIconSize;
   items: GuaranteeItem[];
   rules: DisplayRules;
   /** App backend origin, written by the admin on save. Needed for customer rules. */
@@ -61,24 +82,31 @@ export interface GuaranteeConfig {
 export const DEFAULT_GUARANTEE_CONFIG: GuaranteeConfig = {
   version: 1,
   enabled: false,
+  iconSize: "medium",
   items: [
     {
       id: "exchange",
+      media: "icon",
       icon: "return",
+      imageUrl: "",
       title: "เปลี่ยนไซซ์ฟรี",
       subtitle: "ภายใน 30 วัน",
       translations: { en: { title: "Free exchange", subtitle: "up to 30 days" } },
     },
     {
       id: "secure",
+      media: "icon",
       icon: "lock",
+      imageUrl: "",
       title: "ชำระเงินปลอดภัย",
       subtitle: "เข้ารหัสทุกรายการ",
       translations: { en: { title: "Secure payment", subtitle: "fully encrypted" } },
     },
     {
       id: "people",
+      media: "icon",
       icon: "profile",
+      imageUrl: "",
       title: "ติดต่อทีมงานจริง",
       subtitle: "ตอบทุกคำถาม",
       translations: { en: { title: "Real people", subtitle: "here to help" } },
@@ -102,6 +130,7 @@ function normalizeText(raw: unknown): Partial<GuaranteeText> {
 function normalizeItem(raw: unknown, index: number): GuaranteeItem | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Partial<GuaranteeItem>;
+  const imageUrl = normalizeImageUrl(r.imageUrl);
   const translations: GuaranteeItem["translations"] = {};
   for (const [lang, t] of Object.entries(r.translations ?? {})) {
     const entry = normalizeText(t);
@@ -110,6 +139,9 @@ function normalizeItem(raw: unknown, index: number): GuaranteeItem | null {
   return {
     id: typeof r.id === "string" && r.id ? r.id : `item${index}`,
     icon: isIcon(r.icon) ? r.icon : "check-circle",
+    imageUrl,
+    // Fall back to the icon if "image" was chosen but no valid URL is set.
+    media: r.media === "image" && imageUrl ? "image" : "icon",
     title: clampText(r.title, "", GUARANTEE_LIMITS.maxTitleLength),
     subtitle: clampText(r.subtitle, "", GUARANTEE_LIMITS.maxSubtitleLength),
     translations,
@@ -129,6 +161,7 @@ export function normalizeGuaranteeConfig(raw: unknown): GuaranteeConfig {
   return {
     version: 1,
     enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
+    iconSize: r.iconSize === "small" || r.iconSize === "large" ? r.iconSize : "medium",
     items,
     rules: normalizeRules(r.rules),
     endpoint: normalizeEndpoint(r.endpoint),

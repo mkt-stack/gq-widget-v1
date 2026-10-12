@@ -10,12 +10,15 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   COUNTDOWN_LIMITS,
   COUNTDOWN_METAFIELD_KEY,
+  COUNTDOWN_STAGE_STYLES,
   DEFAULT_COUNTDOWN_CONFIG,
   DEFAULT_COUNTDOWN_VARIANT,
   catchAllIndex,
   countdownRequirements,
   normalizeCountdownConfig,
   type CountdownConfig,
+  type CountdownStage,
+  type CountdownStageStyle,
   type CountdownVariant,
 } from "@gq/widget-core";
 import { authenticate } from "../shopify.server";
@@ -57,6 +60,12 @@ const MESSAGE_FIELDS: Array<{ key: MessageKey; label: string; details: string }>
   { key: "message", label: "Countdown message", details: "Shown while the timer runs. Put {time} where the clock should appear." },
   { key: "warningMessage", label: "Warning message", details: "Replaces the countdown message once time drops under the warning threshold." },
   { key: "expiredMessage", label: "Expired message", details: "Shown when the timer reaches zero." },
+];
+
+const STAGES: Array<{ key: CountdownStage; label: string; details: string }> = [
+  { key: "running", label: "While counting down", details: "Default: green" },
+  { key: "warning", label: "Below the warning threshold", details: "Default: yellow warning, for urgency" },
+  { key: "expired", label: "After time runs out", details: "Default: grey" },
 ];
 
 const durationError = (v: CountdownVariant) =>
@@ -158,9 +167,28 @@ export default function CountdownSettings() {
             value={config.appearance}
             onChange={(e) => set("appearance", inputValue(e) === "banner" ? "banner" : "compact")}
           >
-            <s-option value="compact">Compact (icon + text)</s-option>
-            <s-option value="banner">Banner</s-option>
+            <s-option value="banner">Banner (more urgency)</s-option>
+            <s-option value="compact">Compact (icon + coloured text)</s-option>
           </s-select>
+          <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
+            {STAGES.map((stage) => (
+              <s-select
+                key={stage.key}
+                label={stage.label}
+                details={stage.details}
+                value={config.styles[stage.key]}
+                onChange={(e) =>
+                  set("styles", { ...config.styles, [stage.key]: inputValue(e) as CountdownStageStyle })
+                }
+              >
+                {(Object.keys(COUNTDOWN_STAGE_STYLES) as CountdownStageStyle[]).map((s) => (
+                  <s-option key={s} value={s}>
+                    {COUNTDOWN_STAGE_STYLES[s]}
+                  </s-option>
+                ))}
+              </s-select>
+            ))}
+          </s-grid>
           <s-paragraph color="subdued">
             The timer starts the first time a countdown is shown in a checkout and keeps running across reloads and
             checkout steps. A new checkout starts a fresh timer.

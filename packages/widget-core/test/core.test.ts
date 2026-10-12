@@ -133,7 +133,13 @@ describe("countdown config", () => {
     expect(c.variants[0].durationSeconds).toBe(30);
     expect(c.variants[0].warningThresholdSeconds).toBe(30);
     expect(c.variants[0].name).toBe("Countdown 1");
-    expect(c.appearance).toBe("compact");
+    expect(c.appearance).toBe("banner");
+    expect(c.styles).toEqual({ running: "success", warning: "warning", expired: "neutral" });
+    expect(normalizeCountdownConfig({ appearance: "compact", styles: { warning: "critical", expired: "pink" } }).styles).toEqual({
+      running: "success",
+      warning: "critical",
+      expired: "neutral",
+    });
     expect(c.endpoint).toBeUndefined();
     expect(c.enabled).toBe(false);
   });
@@ -230,6 +236,24 @@ describe("guarantee row", () => {
     const c = normalizeGuaranteeConfig({ items: Array.from({ length: 5 }, () => ({ icon: "nope", title: "T" })) });
     expect(c.items).toHaveLength(3);
     expect(c.items[0]).toMatchObject({ icon: "check-circle", title: "T", subtitle: "" });
+    expect(normalizeGuaranteeConfig(c)).toEqual(c);
+  });
+
+  it("uses an uploaded image only with a valid https URL", () => {
+    const c = normalizeGuaranteeConfig({
+      iconSize: "huge",
+      items: [
+        { media: "image", imageUrl: "https://cdn.shopify.com/s/files/a.png", icon: "lock" },
+        { media: "image", imageUrl: "javascript:alert(1)", icon: "lock" },
+        { media: "image", icon: "lock" },
+      ],
+    });
+    expect(c.iconSize).toBe("medium");
+    expect(c.items.map((i) => [i.media, i.imageUrl])).toEqual([
+      ["image", "https://cdn.shopify.com/s/files/a.png"],
+      ["icon", ""],
+      ["icon", ""],
+    ]);
     expect(normalizeGuaranteeConfig(c)).toEqual(c);
   });
 

@@ -14,7 +14,7 @@ automatically_update_urls_on_dev = false
 [access_scopes]
 # read_products  – product/collection pickers for display conditions
 # read_customers – customer-tag conditions (backend lookup; protected customer data)
-scopes = "read_products,read_customers"
+scopes = "read_products,read_customers,write_files,read_files"
 
 [auth]
 redirect_urls = [ "https://gq-widget-v1-production.up.railway.app/auth/callback" ]

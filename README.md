@@ -24,7 +24,9 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
   - warning threshold
   - countdown, warning and expired messages (`{time}` marks where the clock goes), with optional English overrides
   - what happens on expiry: show the message, hide, or restart
-- **Appearance** (compact or banner) is shared by all countdowns.
+- **Appearance** (banner or compact) and the **stage styles** are shared by all countdowns.
+  - Stage styles default to green while counting down, yellow warning below the threshold, and grey when expired. Each stage can be set to green, blue, yellow, red or grey.
+  - Checkout banners have no grey tone, so grey renders as a subdued box.
 - **One shared start time:** if a different countdown wins later (for example after the shipping method changes), the clock keeps running.
 - **Display conditions:** match **all** or **any** of these:
   - cart contains products, product tags, or a product from a collection (any / none)
@@ -71,7 +73,10 @@ An up-arrow icon plus a short message (e.g. **กดรับสิทธิ์�
 
 Up to 3 equal columns, each with a centred icon, a title and an optional subtitle, e.g. "Free exchange / up to 30 days", "Secure payment", "Real people".
 
-- **Icons:** pick from Shopify's checkout icon set. Custom images aren't supported, so the icons always match checkout branding.
+- **Icons:** each column uses either a Shopify checkout icon or an **uploaded image**.
+  - The admin uploads images to Shopify Files (`write_files` scope, via `app/routes/app.api.upload-image.tsx`) and stores the `cdn.shopify.com` URL. You can also paste a URL from Content → Files.
+  - **Icon size** (small 20px, medium 28px, large 40px) applies to every column.
+  - Each icon sits in a fixed square slot, so titles line up across columns.
 - **Text:** keep it short. Checkout has no text-align property, so text that wraps aligns left inside its column.
 - **Display conditions:** optional, same options as the other widgets.
 - **Placement:** no extension target sits directly under the Pay now button.
@@ -133,7 +138,7 @@ Production runs on Railway: project **modest-ambition** → service **gq-widget-
   - `SHOPIFY_API_KEY`: the app's client ID
   - `SHOPIFY_API_SECRET`
   - `SHOPIFY_APP_URL`: the URL above
-  - `SCOPES`: same as the toml
+  - `SCOPES`: same as the toml (`read_products,read_customers,write_files,read_files`)
   - `DATABASE_URL`: `${{Postgres.DATABASE_URL}}`
 - **Database:** Prisma uses the project's Postgres, which only stores sessions. Migrations run at startup (`npm run docker-start`).
 - **If the URL changes:**

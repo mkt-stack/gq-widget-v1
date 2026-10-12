@@ -49,6 +49,16 @@ export function CountdownPreview({ config }: { config: CountdownConfig }) {
   const message = expired ? copy.expiredMessage : warning ? copy.warningMessage : copy.message;
   const { before, after, hasTime } = splitOnTime(message);
   const clock = expired ? "" : formatRemaining(remaining);
+  // Same stage styles as the extension; "neutral" is a grey box.
+  const style = config.styles[expired ? "expired" : warning ? "warning" : "running"];
+  const grey = style === "neutral";
+  const body = (
+    <s-paragraph tone={config.appearance === "compact" && !grey ? style : "auto"} color={grey ? "subdued" : "base"}>
+      {before}
+      {clock ? <s-text type="strong">{hasTime ? clock : ` ${clock}`}</s-text> : null}
+      {after}
+    </s-paragraph>
+  );
   const hidden = expired && variant.onExpire === "hide";
   const languages = Object.keys(variant.translations);
 
@@ -81,22 +91,18 @@ export function CountdownPreview({ config }: { config: CountdownConfig }) {
 
       {hidden ? (
         <s-text color="subdued">Hidden after expiry.</s-text>
+      ) : config.appearance === "banner" && !grey ? (
+        <s-banner tone={style}>{body}</s-banner>
       ) : (
         <s-box
-          padding="small-200 base"
+          padding={config.appearance === "banner" ? "base" : "small-200 base"}
           border="base"
           borderRadius="base"
-          background={expired || warning ? "subdued" : "transparent"}
+          background={grey ? "subdued" : "transparent"}
         >
           <s-stack direction="inline" gap="small-200" alignItems="center">
-            {config.appearance === "compact" && (
-              <s-icon type={expired || warning ? "alert-triangle" : "clock"} tone={expired || warning ? "critical" : "auto"} />
-            )}
-            <s-paragraph tone={config.appearance === "banner" && (expired || warning) ? "critical" : "auto"}>
-              {before}
-              {clock ? <s-text type="strong">{hasTime ? clock : ` ${clock}`}</s-text> : null}
-              {after}
-            </s-paragraph>
+            <s-icon type={warning ? "alert-triangle" : "clock"} tone={grey ? "neutral" : style} />
+            {body}
           </s-stack>
         </s-box>
       )}
