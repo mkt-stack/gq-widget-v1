@@ -1,0 +1,31 @@
+# Estimated delivery date, shown under the shipping options.
+# Config (message, ranked rules, working days, cutoff) is NOT set here: the
+# app's admin page writes it to the app-owned shop metafield declared below,
+# so changes go live without redeploying the extension.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Delivery Estimate"
+handle = "checkout-delivery-estimate"
+type = "ui_extension"
+uid = "f4f68403-39e8-d49b-8cbe-1cb551213193f6cbb0e7"
+
+# Directly under the shipping method options (recommended).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.shipping-option-list.render-after"
+
+# Or place it anywhere in the checkout editor. Add only one of the two.
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.block.render"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_delivery_estimate"
+
+[extensions.capabilities]
+# Storefront API: product tags / collections for rules.
+api_access = true
+# App backend: customer-tag rules (requires approval in the Dev Dashboard).
+network_access = true

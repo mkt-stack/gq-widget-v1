@@ -138,9 +138,15 @@ export function formatRemaining(totalSeconds: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 }
 
+/** Split a message around a token like {time} so the value can be styled separately. */
+export function splitOnToken(message: string, token: string): { before: string; after: string; hasToken: boolean } {
+  const i = message.indexOf(token);
+  if (i === -1) return { before: message, after: "", hasToken: false };
+  return { before: message.slice(0, i), after: message.slice(i + token.length), hasToken: true };
+}
+
 /** Split a message around {time} so the clock can be styled separately. */
 export function splitOnTime(message: string): { before: string; after: string; hasTime: boolean } {
-  const i = message.indexOf(TIME_TOKEN);
-  if (i === -1) return { before: message, after: "", hasTime: false };
-  return { before: message.slice(0, i), after: message.slice(i + TIME_TOKEN.length), hasTime: true };
+  const { before, after, hasToken } = splitOnToken(message, TIME_TOKEN);
+  return { before, after, hasTime: hasToken };
 }

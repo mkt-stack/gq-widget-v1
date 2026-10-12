@@ -9,6 +9,7 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 | Widget | Surface | Extension | Admin page |
 |---|---|---|---|
 | Checkout countdown | Checkout (all steps, Plus) | `extensions/checkout-countdown` | `/app/widgets/countdown` |
+| Delivery estimate | Checkout, under shipping options (Plus) | `extensions/checkout-delivery-estimate` | `/app/widgets/delivery` |
 
 ### Checkout countdown
 
@@ -30,6 +31,25 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 
   Add only one of them, or buyers will see two timers.
 
+### Delivery estimate
+
+Shows something like **"Estimated delivery Thu 4th - Fri 5th Oct"** (Thai: "คาดว่าจะได้รับสินค้า พฤ. 4 - ศ. 5 ต.ค.").
+
+- **Rules:** up to 5, each with its own delivery window (min and max working days), an optional message override (plus EN), and display conditions.
+- **Ranking:** rules are checked top to bottom and the **first match wins**. If a higher rule is still waiting on product or customer facts, the widget waits instead of briefly showing a lower rule.
+- **Default estimate:** used when no rule matches. Turn it off to show nothing in that case.
+- **Dates:**
+  - Days are working days, counted from the processing day. That is today if it's before the cutoff hour (shop time zone, default Asia/Bangkok, 14:00); otherwise it's the next working day.
+  - Non-working weekdays and listed holidays are skipped.
+  - English uses ordinals ("Thu 4th"); other languages use the browser's short weekday and month names.
+- **Shipping-method condition:** matches when the selected shipping rate's name contains a value, e.g. "VIP". The countdown can use it too.
+- **Pickup:** the widget hides itself when the buyer chooses pickup.
+- **Placement:** two targets:
+  - `purchase.checkout.shipping-option-list.render-after`, directly under the shipping options (recommended)
+  - `purchase.checkout.block.render`, anywhere
+
+  Add only one.
+
 ## Architecture
 
 ```
@@ -40,8 +60,10 @@ app/                         Admin app (embedded in Shopify admin)
   widgets/registry.ts          List of widgets → dashboard
   widgets/metafields.server.ts Read/write widget config metafields
   components/                  Shared admin UI (ConditionBuilder, previews)
-packages/widget-core/        Shared TS: config types, defaults, normalizers, condition engine.
-                             No dependencies. Used by both the admin and the extensions.
+packages/widget-core/        Shared TS: config types, defaults, normalizers, condition engine,
+                             delivery-date maths. No dependencies. Used by the admin and extensions.
+packages/checkout-kit/       Preact hooks shared by checkout extensions: config from app metafields,
+                             condition facts (Storefront API + customer-facts endpoint).
 extensions/<widget>/         One UI extension per widget (Preact + Polaris web components)
 ```
 
@@ -54,6 +76,7 @@ extensions/<widget>/         One UI extension per widget (Preact + Polaris web c
 | Products, subtotal, quantity | Live checkout APIs | Free |
 | Product tags, collections | Storefront API (`api_access`) | Fetched only when the rules need it |
 | Customer tags, logged-in status | `POST /api/storefront/customer-facts` | Fetched only when the rules need it |
+| Selected shipping method | Live checkout API (`deliveryGroups`) | Free |
 
 Customer tags aren't exposed to checkout, so the endpoint does this lookup. It verifies the checkout session token, takes the customer ID from the token's `sub` claim, and returns only which of the *requested* tags the customer has. If the lookup fails, the buyer is treated as a guest.
 
@@ -100,12 +123,14 @@ Production runs on Railway: project **modest-ambition** → service **gq-widget-
 2. **Extension:** run `npm run generate -- extension` (choose *Checkout UI* or *Customer account UI*, Preact). Then:
    - set `api_version = "2026-07"`
    - declare `[[extensions.metafields]] namespace = "$app" key = "widget_<id>"`
-   - add `"@gq/widget-core": "*"` to its `package.json`
+   - add `"@gq/widget-core": "*"` and `"@gq/checkout-kit": "*"` to its `package.json`
+   - use `useWidgetConfig` and `useConditionContext` from `@gq/checkout-kit` instead of re-implementing them
+   - add it to the `typecheck:extensions` script
 3. **Admin page:** add `app/routes/app.widgets.<id>.tsx`, reusing `ConditionBuilder` and `readWidgetConfigs` / `writeWidgetConfig`.
 4. **Registry:** add an entry in `app/widgets/registry.ts` and a nav link in `app/routes/app.tsx`.
 
 **Checkout limits to design for:**
-- Extensions are capped at 64 KB compiled. The countdown is about 30 KB.
+- Extensions are capped at 64 KB compiled. The countdown and the delivery estimate are each about 33 KB.
 - No DOM access and no custom CSS. Only Polaris `s-*` components, which take the store's checkout branding.
 - Customer data needs protected-customer-data approval.
 - Any `fetch` needs `network_access` and must answer CORS (use `authenticate.public.checkout` / `authenticate.public.customerAccount`).

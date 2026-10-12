@@ -1,6 +1,8 @@
 import {
   COUNTDOWN_METAFIELD_KEY,
+  DELIVERY_METAFIELD_KEY,
   normalizeCountdownConfig,
+  normalizeDeliveryConfig,
 } from "@gq/widget-core";
 
 /**
@@ -33,6 +35,16 @@ export const WIDGETS: WidgetDefinition[] = [
     metafieldKey: COUNTDOWN_METAFIELD_KEY,
     extensionHandle: "checkout-countdown",
     normalize: normalizeCountdownConfig,
+  },
+  {
+    id: "delivery",
+    name: "Delivery estimate",
+    description:
+      "Estimated delivery dates under the shipping options, with up to 5 ranked rules (e.g. VIP fast shipping, embroidery).",
+    surface: "checkout",
+    metafieldKey: DELIVERY_METAFIELD_KEY,
+    extensionHandle: "checkout-delivery-estimate",
+    normalize: normalizeDeliveryConfig,
   },
 ];
 

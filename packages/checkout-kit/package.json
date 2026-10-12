@@ -1,0 +1,19 @@
+{
+  "name": "@gq/checkout-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Preact hooks shared by the checkout UI extensions: widget config from app metafields and the facts that display conditions need. Ships inside checkout bundles (64 KB cap), so keep it small.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@gq/widget-core": "*"
+  },
+  "peerDependencies": {
+    "preact": "^10.27.0"
+  }
+}

@@ -7,6 +7,7 @@ Custom Shopify app for **gqsize.com** (Shopify Plus, THB, Thai-first). It hosts 
 - Extensions: Preact + Polaris web components (`s-*`) only; no React, no DOM, and the bundle must stay ≤ 64 KB. Validate extension code with the Shopify AI Toolkit `shopify-polaris-checkout-extensions` / `shopify-polaris-customer-account-extensions` skills.
 - Widget config is a JSON **app-owned shop metafield** (`$app`, key `widget_<id>`). Always pass it through the widget's `normalize…Config()` from `@gq/widget-core`, whether reading or writing. Never trust raw metafield JSON.
 - `packages/widget-core` must stay dependency-free and browser/worker-safe, because it ships inside checkout bundles.
+- Checkout extensions share hooks through `packages/checkout-kit` (Preact peer dependency only). It never touches the `shopify` global; extensions pass a `CheckoutFactsApi` object in.
 - Endpoints that extensions call live under `app/routes/api.storefront.*`. They must use `authenticate.public.checkout` (or `.customerAccount`), return through `cors()`, and identify customers only from the session token `sub`.
 - Default customer-facing copy is Thai, with English in `translations.en`.
 

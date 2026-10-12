@@ -18,7 +18,7 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit && npm run typecheck:extensions",
-    "typecheck:extensions": "tsc --noEmit -p extensions/checkout-countdown",
+    "typecheck:extensions": "tsc --noEmit -p extensions/checkout-countdown && tsc --noEmit -p extensions/checkout-delivery-estimate",
     "test": "vitest run"
   },
   "type": "module",

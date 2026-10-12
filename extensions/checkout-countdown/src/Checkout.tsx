@@ -3,7 +3,6 @@ import { render } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import {
   COUNTDOWN_METAFIELD_KEY,
-  CUSTOMER_FACTS_PATH,
   conditionRequirements,
   evaluateRules,
   formatRemaining,
@@ -11,18 +10,28 @@ import {
   resolveCountdownMessages,
   splitOnTime,
   type CountdownConfig,
-  type CustomerFacts,
-  type ProductFacts,
 } from "@gq/widget-core";
+import {
+  selectedDeliveryOptions,
+  toConditionLines,
+  useConditionContext,
+  useWidgetConfig,
+  type CheckoutFactsApi,
+} from "@gq/checkout-kit";
 
 const START_KEY = "countdown:startedAt";
+
+const api: CheckoutFactsApi = {
+  query: (query, options) => shopify.query(query, options),
+  getSessionToken: () => shopify.sessionToken.get(),
+};
 
 export default function extension() {
   render(<Countdown />, document.body);
 }
 
 function Countdown() {
-  const config = useConfig();
+  const config = useWidgetConfig(shopify.appMetafields.value, COUNTDOWN_METAFIELD_KEY, normalizeCountdownConfig);
   const visible = useDisplayRules(config);
   const remaining = useRemainingSeconds(config, visible === true);
 
@@ -64,69 +73,24 @@ function Countdown() {
   );
 }
 
-/** Config lives in an app-owned shop metafield that the admin writes. */
-function useConfig(): CountdownConfig | null {
-  const entry = shopify.appMetafields.value.find(
-    (e) => e.target.type === "shop" && e.metafield.key === COUNTDOWN_METAFIELD_KEY,
-  );
-  const raw = entry?.metafield.value;
-  return useMemo(() => {
-    if (typeof raw !== "string") return null;
-    try {
-      return normalizeCountdownConfig(JSON.parse(raw));
-    } catch {
-      return null;
-    }
-  }, [raw]);
-}
-
 /**
- * true/false once decided, undefined while facts are loading. Cart facts are
- * live; product facts are fetched per distinct product set; customer facts once.
+ * true/false once decided, undefined while facts are loading. Cart and
+ * shipping facts are live; product and customer facts are fetched on demand.
  */
 function useDisplayRules(config: CountdownConfig | null): boolean | undefined {
-  const lines = shopify.lines.value;
-  const subtotal = Number(shopify.cost.subtotalAmount.value.amount);
-  const needs = useMemo(
-    () => (config ? conditionRequirements(config.rules) : null),
-    [config],
+  const needs = useMemo(() => (config ? conditionRequirements(config.rules) : null), [config]);
+  const ctx = useConditionContext(
+    needs,
+    {
+      lines: toConditionLines(shopify.lines.value),
+      subtotal: Number(shopify.cost.subtotalAmount.value.amount),
+      shippingMethods: selectedDeliveryOptions(shopify.deliveryGroups.value).map((o) => o.title),
+    },
+    config?.endpoint,
+    api,
   );
-
-  const ctxLines = lines.map((l) => ({
-    productId: l.merchandise.product.id,
-    variantId: l.merchandise.id,
-    quantity: l.quantity,
-  }));
-  const productKey = [...new Set(ctxLines.map((l) => l.productId))].sort().join(",");
-
-  const [products, setProducts] = useState<Record<string, ProductFacts>>();
-  const [customer, setCustomer] = useState<CustomerFacts>();
-
-  useEffect(() => {
-    if (!needs?.productFacts || !productKey) return;
-    let cancelled = false;
-    fetchProductFacts(productKey.split(",")).then((facts) => {
-      if (!cancelled) setProducts(facts);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [needs?.productFacts, productKey]);
-
-  const endpoint = config?.endpoint;
-  useEffect(() => {
-    if (!needs?.customer) return;
-    let cancelled = false;
-    fetchCustomerFacts(endpoint, needs.customerTags).then((facts) => {
-      if (!cancelled) setCustomer(facts);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [needs, endpoint]);
-
   if (!config?.enabled) return false;
-  return evaluateRules(config.rules, { lines: ctxLines, subtotal, products, customer });
+  return evaluateRules(config.rules, ctx);
 }
 
 /**
@@ -178,57 +142,4 @@ function useRemainingSeconds(config: CountdownConfig | null, active: boolean): n
   }, [shouldRestart]);
 
   return shouldRestart && config ? config.durationSeconds : remaining;
-}
-
-const PRODUCT_FACTS_QUERY = `query ProductFacts($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Product { id tags collections(first: 100) { nodes { id } } }
-  }
-}`;
-
-type ProductFactsResponse = {
-  nodes: Array<{ id: string; tags: string[]; collections: { nodes: { id: string }[] } } | null>;
-};
-
-async function fetchProductFacts(ids: string[]): Promise<Record<string, ProductFacts>> {
-  const facts: Record<string, ProductFacts> = {};
-  try {
-    const { data } = (await shopify.query(PRODUCT_FACTS_QUERY, {
-      variables: { ids },
-    })) as { data?: ProductFactsResponse };
-    for (const node of data?.nodes ?? []) {
-      if (!node) continue;
-      facts[node.id] = { tags: node.tags, collectionIds: node.collections.nodes.map((c) => c.id) };
-    }
-  } catch {
-    // Unknown products simply don't match tag/collection rules.
-  }
-  return facts;
-}
-
-/**
- * Customer tags aren't exposed to checkout, so the app backend looks them up
- * using the customer GID from the verified session token. Only the tags the
- * rules ask about come back. On failure we treat the buyer as a guest with no
- * tags, so "includes any" rules hide the widget and "includes none" rules show it.
- */
-async function fetchCustomerFacts(
-  endpoint: string | undefined,
-  tags: string[],
-): Promise<CustomerFacts> {
-  const fallback: CustomerFacts = { loggedIn: false, tags: [] };
-  if (!endpoint) return fallback;
-  try {
-    const token = await shopify.sessionToken.get();
-    const res = await fetch(`${endpoint}${CUSTOMER_FACTS_PATH}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ tags }),
-    });
-    if (!res.ok) return fallback;
-    const body = (await res.json()) as Partial<CustomerFacts>;
-    return { loggedIn: body.loggedIn === true, tags: Array.isArray(body.tags) ? body.tags : [] };
-  } catch {
-    return fallback;
-  }
 }

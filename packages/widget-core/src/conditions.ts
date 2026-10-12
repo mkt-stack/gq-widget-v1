@@ -16,7 +16,8 @@ export type ConditionType =
   | "subtotal"
   | "item_count"
   | "customer_tag"
-  | "customer_status";
+  | "customer_status"
+  | "shipping_method";
 
 export type ConditionOperator =
   /** List rules: at least one value matches. */
@@ -72,6 +73,8 @@ export interface ConditionContext {
   products?: Record<string, ProductFacts>;
   /** Omit until loaded. */
   customer?: CustomerFacts;
+  /** Titles of the selected delivery options (empty before one is chosen). */
+  shippingMethods?: string[];
 }
 
 export interface ConditionRequirements {
@@ -92,6 +95,7 @@ export const CONDITION_TYPES: Record<
   item_count: { label: "Cart item quantity", operators: ["gte", "lte"] },
   customer_tag: { label: "Customer tag", operators: ["any", "none"] },
   customer_status: { label: "Customer status", operators: ["logged_in", "guest"] },
+  shipping_method: { label: "Selected shipping method name", operators: ["any", "none"] },
 };
 
 export const OPERATOR_LABELS: Record<ConditionOperator, string> = {
@@ -105,11 +109,12 @@ export const OPERATOR_LABELS: Record<ConditionOperator, string> = {
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export function conditionRequirements(rules: DisplayRules): ConditionRequirements {
+/** Pass several rule sets (e.g. ranked rules) to get what any of them needs. */
+export function conditionRequirements(...ruleSets: DisplayRules[]): ConditionRequirements {
   const tags = new Set<string>();
   let productFacts = false;
   let customer = false;
-  for (const c of rules.conditions) {
+  for (const c of ruleSets.flatMap((r) => r.conditions)) {
     if (c.type === "product_tag" || c.type === "collection") productFacts = true;
     if (c.type === "customer_tag" || c.type === "customer_status") customer = true;
     if (c.type === "customer_tag") c.values.forEach((v) => tags.add(norm(v)));
@@ -158,6 +163,12 @@ function evaluateOne(c: Condition, ctx: ConditionContext): boolean | undefined {
     case "customer_status":
       if (!ctx.customer) return undefined;
       return c.operator === "guest" ? !ctx.customer.loggedIn : ctx.customer.loggedIn;
+    case "shipping_method": {
+      if (!ctx.shippingMethods) return undefined;
+      const titles = ctx.shippingMethods.map(norm);
+      // "contains" match: "vip" matches "VIP Fast Shipping (1-2 days)".
+      return listMatch(c.values.some((v) => titles.some((t) => t.includes(norm(v)))));
+    }
   }
 }
 

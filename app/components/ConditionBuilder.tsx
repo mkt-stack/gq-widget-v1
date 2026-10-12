@@ -15,6 +15,10 @@ interface Props {
   /** Rule types this widget supports (default: all). */
   types?: ConditionType[];
   currencyCode?: string;
+  /** Wording for the match selector, e.g. "Apply this rule when". */
+  matchLabel?: string;
+  /** Shown when there are no conditions. */
+  emptyText?: string;
 }
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -22,7 +26,14 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 const splitTags = (s: string) =>
   [...new Set(s.split(",").map((t) => t.trim()).filter(Boolean))];
 
-export function ConditionBuilder({ rules, onChange, types, currencyCode = "" }: Props) {
+export function ConditionBuilder({
+  rules,
+  onChange,
+  types,
+  currencyCode = "",
+  matchLabel = "Show the widget when",
+  emptyText = "No conditions: the widget shows on every checkout.",
+}: Props) {
   const shopify = useAppBridge();
   const allowed = types ?? (Object.keys(CONDITION_TYPES) as ConditionType[]);
 
@@ -73,7 +84,7 @@ export function ConditionBuilder({ rules, onChange, types, currencyCode = "" }: 
     <s-stack gap="base">
       {rules.conditions.length > 1 && (
         <s-select
-          label="Show the widget when"
+          label={matchLabel}
           value={rules.match}
           onChange={(e) => onChange({ ...rules, match: inputValue(e) === "any" ? "any" : "all" })}
         >
@@ -83,9 +94,7 @@ export function ConditionBuilder({ rules, onChange, types, currencyCode = "" }: 
       )}
 
       {rules.conditions.length === 0 && (
-        <s-paragraph color="subdued">
-          No conditions: the widget shows on every checkout.
-        </s-paragraph>
+        <s-paragraph color="subdued">{emptyText}</s-paragraph>
       )}
 
       {rules.conditions.map((c) => {
@@ -150,6 +159,17 @@ export function ConditionBuilder({ rules, onChange, types, currencyCode = "" }: 
                   labelAccessibilityVisibility="exclusive"
                   placeholder="e.g. promed, vip"
                   details="Comma-separated, not case-sensitive."
+                  value={c.values.join(", ")}
+                  onChange={(e) => update(c.id, { values: splitTags(inputValue(e)) })}
+                />
+              )}
+
+              {c.type === "shipping_method" && (
+                <s-text-field
+                  label="Shipping method names"
+                  labelAccessibilityVisibility="exclusive"
+                  placeholder="e.g. VIP, Express"
+                  details="Matches when the selected shipping method's name contains any of these. Comma-separated, not case-sensitive."
                   value={c.values.join(", ")}
                   onChange={(e) => update(c.id, { values: splitTags(inputValue(e)) })}
                 />
