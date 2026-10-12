@@ -9,6 +9,7 @@ import { SaveBar, useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   DEFAULT_GUARANTEE_CONFIG,
+  GUARANTEE_CARD_STYLES,
   GUARANTEE_ICON_SIZES,
   GUARANTEE_ICONS,
   GUARANTEE_LIMITS,
@@ -16,6 +17,7 @@ import {
   conditionRequirements,
   normalizeGuaranteeConfig,
   resolveGuaranteeText,
+  type GuaranteeCard,
   type GuaranteeConfig,
   type GuaranteeIcon,
   type GuaranteeIconSize,
@@ -125,6 +127,21 @@ export default function GuaranteeSettings() {
               setConfig((c) => ({ ...c, enabled: value }));
             }}
           />
+          <s-select
+            label="Card style"
+            details="A subtle light card with rounded corners. Colours follow your checkout branding."
+            value={config.card}
+            onChange={(e) => {
+              const card = inputValue(e) as GuaranteeCard;
+              setConfig((c) => ({ ...c, card }));
+            }}
+          >
+            {(Object.keys(GUARANTEE_CARD_STYLES) as GuaranteeCard[]).map((k) => (
+              <s-option key={k} value={k}>
+                {GUARANTEE_CARD_STYLES[k]}
+              </s-option>
+            ))}
+          </s-select>
           <s-select
             label="Icon size"
             details="Applies to Shopify icons and uploaded images in every column."
@@ -272,13 +289,29 @@ function GuaranteePreview({ config }: { config: GuaranteeConfig }) {
       {config.items.length === 0 ? (
         <s-text color="subdued">Add a column to preview it.</s-text>
       ) : (
-        <s-box padding="small-200" border="base" borderRadius="base">
-          <s-grid gridTemplateColumns={config.items.map(() => "1fr").join(" ")} gap="small-200" alignItems="start">
+        <s-box
+          padding={config.card === "row" ? "base small-200" : "small-200 none"}
+          background={config.card === "row" ? "subdued" : undefined}
+          borderRadius={config.card === "row" ? "large" : undefined}
+        >
+          <s-grid
+            gridTemplateColumns={config.items.map(() => "1fr").join(" ")}
+            gap="small-200"
+            alignItems={config.card === "columns" ? "stretch" : "start"}
+          >
             {config.items.map((item) => {
               const { title, subtitle } = resolveGuaranteeText(item, language);
               const slot = `${GUARANTEE_ICON_SIZES[config.iconSize].px}px` as const;
               return (
-                <s-stack key={item.id} direction="block" alignItems="center" gap="small-200">
+                <s-stack
+                  key={item.id}
+                  direction="block"
+                  alignItems="center"
+                  gap="small-200"
+                  background={config.card === "columns" ? "subdued" : undefined}
+                  borderRadius={config.card === "columns" ? "large" : undefined}
+                  padding={config.card === "columns" ? "base small-200" : undefined}
+                >
                   <s-stack inlineSize={slot} blockSize={slot} alignItems="center" justifyContent="center">
                     {item.media === "image" ? (
                       <s-image src={item.imageUrl} alt="" inlineSize="fill" aspectRatio="1" objectFit="contain" />

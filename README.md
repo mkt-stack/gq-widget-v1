@@ -94,6 +94,7 @@ Up to 3 equal columns, each with a centred icon, a title and an optional subtitl
 - **Icons:** each column uses either a Shopify checkout icon or an **uploaded image**.
   - The admin uploads images to Shopify Files (`write_files` scope, via `app/routes/app.api.upload-image.tsx`) and stores the `cdn.shopify.com` URL. You can also paste a URL from Content → Files.
   - **Icon size** (small 20px, medium 28px, large 40px) applies to every column.
+- **Card style:** one subtle card around the row (default), a card per column, or none. Cards use a light (subdued) background with large rounded corners and follow checkout branding.
   - Each icon sits in a fixed square slot, so titles line up across columns.
 - **Text:** keep it short. Checkout has no text-align property, so text that wraps aligns left inside its column.
 - **Display conditions:** optional, same options as the other widgets.

@@ -29,7 +29,8 @@ export default function extension() {
 /**
  * Up to 3 equal, top-aligned columns. Each is a vertical stack: a fixed-size
  * square slot (Shopify icon or uploaded image), then title, then subtitle, so
- * titles line up across columns whatever the icon.
+ * titles line up across columns whatever the icon. Optional subtle card:
+ * subdued background + large rounded corners, around the row or each column.
  */
 function GuaranteeRow() {
   const config = useWidgetConfig(shopify.appMetafields.value, GUARANTEE_METAFIELD_KEY, normalizeGuaranteeConfig);
@@ -51,17 +52,26 @@ function GuaranteeRow() {
   const language = shopify.localization.language.value.isoCode;
   const size = GUARANTEE_ICON_SIZES[config.iconSize];
   const slot = `${size.px}px` as const;
-  return (
+  const columnCards = config.card === "columns";
+  const grid = (
     <s-grid
       gridTemplateColumns={config.items.map(() => "1fr").join(" ")}
-      gap="base"
-      alignItems="start"
-      paddingBlock="small-200"
+      gap={columnCards ? "small-200" : "base"}
+      alignItems={columnCards ? "stretch" : "start"}
+      paddingBlock={config.card === "none" ? "small-200" : undefined}
     >
       {config.items.map((item) => {
         const { title, subtitle } = resolveGuaranteeText(item, language);
         return (
-          <s-stack key={item.id} direction="block" alignItems="center" gap="small-200">
+          <s-stack
+            key={item.id}
+            direction="block"
+            alignItems="center"
+            gap="small-200"
+            background={columnCards ? "subdued" : undefined}
+            borderRadius={columnCards ? "large" : undefined}
+            padding={columnCards ? "base small-200" : undefined}
+          >
             <s-stack inlineSize={slot} blockSize={slot} alignItems="center" justifyContent="center">
               {item.media === "image" ? (
                 <s-image src={item.imageUrl} alt="" inlineSize="fill" aspectRatio="1" objectFit="contain" />
@@ -79,5 +89,12 @@ function GuaranteeRow() {
         );
       })}
     </s-grid>
+  );
+
+  if (config.card !== "row") return grid;
+  return (
+    <s-box background="subdued" borderRadius="large" padding="base small-200">
+      {grid}
+    </s-box>
   );
 }

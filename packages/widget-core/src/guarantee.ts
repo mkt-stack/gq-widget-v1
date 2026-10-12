@@ -13,6 +13,15 @@ export const GUARANTEE_LIMITS = { maxItems: 3, maxTitleLength: 40, maxSubtitleLe
 
 export type GuaranteeIconSize = "small" | "medium" | "large";
 
+/** Subtle card: light (subdued) background with large rounded corners. */
+export type GuaranteeCard = "row" | "columns" | "none";
+
+export const GUARANTEE_CARD_STYLES: Record<GuaranteeCard, string> = {
+  row: "One card around the row",
+  columns: "A card per column",
+  none: "No card",
+};
+
 /**
  * `icon` is the checkout s-icon size; `px` is the square slot every column's
  * icon or image sits in, so titles line up across columns.
@@ -73,6 +82,7 @@ export interface GuaranteeConfig {
   version: 1;
   enabled: boolean;
   iconSize: GuaranteeIconSize;
+  card: GuaranteeCard;
   items: GuaranteeItem[];
   rules: DisplayRules;
   /** App backend origin, written by the admin on save. Needed for customer rules. */
@@ -83,6 +93,7 @@ export const DEFAULT_GUARANTEE_CONFIG: GuaranteeConfig = {
   version: 1,
   enabled: false,
   iconSize: "medium",
+  card: "row",
   items: [
     {
       id: "exchange",
@@ -162,6 +173,8 @@ export function normalizeGuaranteeConfig(raw: unknown): GuaranteeConfig {
     version: 1,
     enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
     iconSize: r.iconSize === "small" || r.iconSize === "large" ? r.iconSize : "medium",
+    // Configs saved before this option existed get the row card.
+    card: r.card === "columns" || r.card === "none" ? r.card : "row",
     items,
     rules: normalizeRules(r.rules),
     endpoint: normalizeEndpoint(r.endpoint),

@@ -256,6 +256,8 @@ describe("guarantee row", () => {
       ],
     });
     expect(c.iconSize).toBe("medium");
+    expect(c.card).toBe("row");
+    expect(normalizeGuaranteeConfig({ card: "columns" }).card).toBe("columns");
     expect(c.items.map((i) => [i.media, i.imageUrl])).toEqual([
       ["image", "https://cdn.shopify.com/s/files/a.png"],
       ["icon", ""],
