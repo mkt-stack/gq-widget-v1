@@ -146,12 +146,20 @@ export default function PointsSettings() {
             label="Show points earn callout in checkout"
             details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
             checked={config.enabled}
-            onChange={(e) => setConfig((c) => ({ ...c, enabled: inputChecked(e) }))}
+            onChange={(e) => {
+              // Read the event now; the updater runs later, after currentTarget is cleared.
+              const value = inputChecked(e);
+              setConfig((c) => ({ ...c, enabled: value }));
+            }}
           />
           <s-select
             label="Calculate points from"
             value={config.base}
-            onChange={(e) => setConfig((c) => ({ ...c, base: inputValue(e) as PointsBase }))}
+            onChange={(e) => {
+              // Read the event now; the updater runs later, after currentTarget is cleared.
+              const value = inputValue(e) as PointsBase;
+              setConfig((c) => ({ ...c, base: value }));
+            }}
           >
             {(Object.keys(POINTS_BASES) as PointsBase[]).map((b) => (
               <s-option key={b} value={b}>

@@ -119,13 +119,21 @@ export default function GuaranteeSettings() {
             label="Show guarantee row in checkout"
             details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
             checked={config.enabled}
-            onChange={(e) => setConfig((c) => ({ ...c, enabled: inputChecked(e) }))}
+            onChange={(e) => {
+              // Read the event now; the updater runs later, after currentTarget is cleared.
+              const value = inputChecked(e);
+              setConfig((c) => ({ ...c, enabled: value }));
+            }}
           />
           <s-select
             label="Icon size"
             details="Applies to Shopify icons and uploaded images in every column."
             value={config.iconSize}
-            onChange={(e) => setConfig((c) => ({ ...c, iconSize: inputValue(e) as GuaranteeIconSize }))}
+            onChange={(e) => {
+              // Read the event now; the updater runs later, after currentTarget is cleared.
+              const value = inputValue(e) as GuaranteeIconSize;
+              setConfig((c) => ({ ...c, iconSize: value }));
+            }}
           >
             {(Object.keys(GUARANTEE_ICON_SIZES) as GuaranteeIconSize[]).map((s) => (
               <s-option key={s} value={s}>

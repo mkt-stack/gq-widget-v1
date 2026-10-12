@@ -131,7 +131,11 @@ export default function CalloutSettings() {
             label="Show membership callout in checkout"
             details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
             checked={config.enabled}
-            onChange={(e) => setConfig((c) => ({ ...c, enabled: inputChecked(e) }))}
+            onChange={(e) => {
+              // Read the event now; the updater runs later, after currentTarget is cleared.
+              const value = inputChecked(e);
+              setConfig((c) => ({ ...c, enabled: value }));
+            }}
           />
           <s-paragraph color="subdued">
             Shows an up arrow with a short message pointing to the member signup widget at the top of checkout.
