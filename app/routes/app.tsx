@@ -20,7 +20,9 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app">Widgets</s-link>
         <s-link href="/app/widgets/countdown">Checkout countdown</s-link>
-        <s-link href="/app/widgets/delivery">Delivery estimate</s-link>
+        <s-link href="/app/widgets/delivery">Estimate delivery date</s-link>
+        <s-link href="/app/widgets/callout">Membership callout</s-link>
+        <s-link href="/app/widgets/guarantee">Guarantee row</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

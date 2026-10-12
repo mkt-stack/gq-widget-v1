@@ -14,6 +14,7 @@ type PreviewState = "running" | "warning" | "expired";
  * store's branding, so this preview shows layout and copy, not exact styling.
  */
 export function CountdownPreview({ config }: { config: CountdownConfig }) {
+  const [variantId, setVariantId] = useState("");
   const [state, setState] = useState<PreviewState>("running");
   const [language, setLanguage] = useState("");
   const [anchor, setAnchor] = useState(() => Date.now());
@@ -32,24 +33,36 @@ export function CountdownPreview({ config }: { config: CountdownConfig }) {
     setNow(t);
   };
 
+  const variant = config.variants.find((v) => v.id === variantId) ?? config.variants[0];
+  if (!variant) return <s-text color="subdued">Add a countdown to preview it.</s-text>;
+
   const start =
     state === "running"
-      ? config.durationSeconds
+      ? variant.durationSeconds
       : state === "warning"
-        ? Math.max(1, config.warningThresholdSeconds)
+        ? Math.max(1, variant.warningThresholdSeconds)
         : 0;
   const remaining = state === "expired" ? 0 : Math.max(0, start - elapsed);
   const expired = remaining <= 0;
-  const warning = !expired && remaining <= config.warningThresholdSeconds;
-  const copy = resolveCountdownMessages(config, language);
+  const warning = !expired && remaining <= variant.warningThresholdSeconds;
+  const copy = resolveCountdownMessages(variant, language);
   const message = expired ? copy.expiredMessage : warning ? copy.warningMessage : copy.message;
   const { before, after, hasTime } = splitOnTime(message);
   const clock = expired ? "" : formatRemaining(remaining);
-  const hidden = expired && config.onExpire === "hide";
-  const languages = Object.keys(config.translations);
+  const hidden = expired && variant.onExpire === "hide";
+  const languages = Object.keys(variant.translations);
 
   return (
     <s-stack gap="base">
+      {config.variants.length > 1 && (
+        <s-select label="Countdown" value={variant.id} onChange={(e) => setVariantId(inputValue(e))}>
+          {config.variants.map((v, i) => (
+            <s-option key={v.id} value={v.id}>
+              {`${i + 1}. ${v.name}`}
+            </s-option>
+          ))}
+        </s-select>
+      )}
       <s-grid gridTemplateColumns="1fr 1fr" gap="small-200">
         <s-select label="State" value={state} onChange={(e) => changeState(inputValue(e) as PreviewState)}>
           <s-option value="running">Running</s-option>

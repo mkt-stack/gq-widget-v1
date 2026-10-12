@@ -9,17 +9,23 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 | Widget | Surface | Extension | Admin page |
 |---|---|---|---|
 | Checkout countdown | Checkout (all steps, Plus) | `extensions/checkout-countdown` | `/app/widgets/countdown` |
-| Delivery estimate | Checkout, under shipping options (Plus) | `extensions/checkout-delivery-estimate` | `/app/widgets/delivery` |
+| Estimate delivery date | Checkout, under shipping options (Plus) | `extensions/checkout-delivery-estimate` | `/app/widgets/delivery` |
+| Membership callout | Checkout, above Pay now (Plus) | `extensions/checkout-member-callout` | `/app/widgets/callout` |
+| Guarantee row | Checkout, below Pay now (Plus) | `extensions/checkout-guarantee` | `/app/widgets/guarantee` |
+
+**Ranked variants:** the countdown (up to 5), delivery rules (up to 5) and membership callouts (up to 3) are ranked lists. Each entry has its own conditions, and the first enabled entry that matches wins. If a higher entry is still waiting on product or customer facts, the widget waits rather than briefly showing a lower one. An entry with no conditions matches everyone, and the admin warns that entries below it never apply.
 
 ### Checkout countdown
 
+- **Up to 5 ranked countdowns.** Each has its own duration, warning threshold, expiry behaviour, messages and conditions. Saved v1 (single countdown) configs migrate automatically into one countdown called "Everyone".
 - **Start:** the timer starts the first time the block renders in a checkout. It is stored in `shopify.storage`, so it survives reloads and step changes, and a new checkout starts a fresh timer.
-- **Settings (admin):**
+- **Settings for each countdown:**
   - duration
   - warning threshold
   - countdown, warning and expired messages (`{time}` marks where the clock goes), with optional English overrides
   - what happens on expiry: show the message, hide, or restart
-  - appearance: compact or banner
+- **Appearance** (compact or banner) is shared by all countdowns.
+- **One shared start time:** if a different countdown wins later (for example after the shipping method changes), the clock keeps running.
 - **Display conditions:** match **all** or **any** of these:
   - cart contains products, product tags, or a product from a collection (any / none)
   - cart subtotal or item quantity (≥ / ≤)
@@ -31,7 +37,7 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 
   Add only one of them, or buyers will see two timers.
 
-### Delivery estimate
+### Estimate delivery date
 
 Shows something like **"Estimated delivery Thu 4th - Fri 5th Oct"** (Thai: "คาดว่าจะได้รับสินค้า พฤ. 4 - ศ. 5 ต.ค.").
 
@@ -50,6 +56,28 @@ Shows something like **"Estimated delivery Thu 4th - Fri 5th Oct"** (Thai: "ค�
 
   Add only one.
 
+### Membership callout
+
+An up-arrow icon plus a short message (e.g. **กดรับสิทธิ์ส่งฟรีด้านบน**, in green) that points the buyer up to the member signup widget.
+
+- **Not clickable:** checkout extensions can't scroll the page (no DOM access, and `scrollTo` was removed in 2026-07).
+- **Up to 3 ranked callouts.** Each has a message (plus EN), a colour (green / blue / red / normal, all using checkout branding colours), bold on or off, and conditions.
+- **Example audiences:** use "Customer status is a guest", "is logged in" and "Customer tag includes none of member". Both conditions use the customer-facts endpoint.
+- **Placement:**
+  - `purchase.checkout.actions.render-before`, just above Pay now (recommended)
+  - `purchase.checkout.block.render`, anywhere
+
+### Guarantee row
+
+Up to 3 equal columns, each with a centred icon, a title and an optional subtitle, e.g. "Free exchange / up to 30 days", "Secure payment", "Real people".
+
+- **Icons:** pick from Shopify's checkout icon set. Custom images aren't supported, so the icons always match checkout branding.
+- **Text:** keep it short. Checkout has no text-align property, so text that wraps aligns left inside its column.
+- **Display conditions:** optional, same options as the other widgets.
+- **Placement:** no extension target sits directly under the Pay now button.
+  - `purchase.checkout.footer.render-after`, under Pay now and the policy links (recommended)
+  - `purchase.checkout.block.render`, anywhere
+
 ## Architecture
 
 ```
@@ -64,6 +92,8 @@ packages/widget-core/        Shared TS: config types, defaults, normalizers, con
                              delivery-date maths. No dependencies. Used by the admin and extensions.
 packages/checkout-kit/       Preact hooks shared by checkout extensions: config from app metafields,
                              condition facts (Storefront API + customer-facts endpoint).
+                             Ranked lists live in widget-core (`ranked.ts`); the admin card is
+                             app/components/RankedCard.tsx.
 extensions/<widget>/         One UI extension per widget (Preact + Polaris web components)
 ```
 
@@ -130,7 +160,7 @@ Production runs on Railway: project **modest-ambition** → service **gq-widget-
 4. **Registry:** add an entry in `app/widgets/registry.ts` and a nav link in `app/routes/app.tsx`.
 
 **Checkout limits to design for:**
-- Extensions are capped at 64 KB compiled. The countdown and the delivery estimate are each about 33 KB.
+- Extensions are capped at 64 KB compiled. Each widget is about 29–33 KB.
 - No DOM access and no custom CSS. Only Polaris `s-*` components, which take the store's checkout branding.
 - Customer data needs protected-customer-data approval.
 - Any `fetch` needs `network_access` and must answer CORS (use `authenticate.public.checkout` / `authenticate.public.customerAccount`).

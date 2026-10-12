@@ -3,13 +3,14 @@ import { render } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import {
   COUNTDOWN_METAFIELD_KEY,
-  conditionRequirements,
-  evaluateRules,
+  countdownRequirements,
   formatRemaining,
   normalizeCountdownConfig,
+  pickCountdownVariant,
   resolveCountdownMessages,
   splitOnTime,
   type CountdownConfig,
+  type CountdownVariant,
 } from "@gq/widget-core";
 import {
   selectedDeliveryOptions,
@@ -32,16 +33,16 @@ export default function extension() {
 
 function Countdown() {
   const config = useWidgetConfig(shopify.appMetafields.value, COUNTDOWN_METAFIELD_KEY, normalizeCountdownConfig);
-  const visible = useDisplayRules(config);
-  const remaining = useRemainingSeconds(config, visible === true);
+  const variant = useVariant(config);
+  const remaining = useRemainingSeconds(variant);
 
-  if (!config?.enabled || visible !== true || remaining === null) return null;
+  if (!config?.enabled || !variant || remaining === null) return null;
 
   const expired = remaining <= 0;
-  if (expired && config.onExpire === "hide") return null;
+  if (expired && variant.onExpire === "hide") return null;
 
-  const copy = resolveCountdownMessages(config, shopify.localization.language.value.isoCode);
-  const warning = !expired && remaining <= config.warningThresholdSeconds;
+  const copy = resolveCountdownMessages(variant, shopify.localization.language.value.isoCode);
+  const warning = !expired && remaining <= variant.warningThresholdSeconds;
   const message = expired ? copy.expiredMessage : warning ? copy.warningMessage : copy.message;
   const { before, after, hasTime } = splitOnTime(message);
   const clock = expired ? "" : formatRemaining(remaining);
@@ -74,11 +75,12 @@ function Countdown() {
 }
 
 /**
- * true/false once decided, undefined while facts are loading. Cart and
- * shipping facts are live; product and customer facts are fetched on demand.
+ * The first ranked variant whose conditions match; null while undecided or
+ * when none match. Cart and shipping facts are live; product and customer
+ * facts are fetched on demand.
  */
-function useDisplayRules(config: CountdownConfig | null): boolean | undefined {
-  const needs = useMemo(() => (config ? conditionRequirements(config.rules) : null), [config]);
+function useVariant(config: CountdownConfig | null): CountdownVariant | null {
+  const needs = useMemo(() => (config ? countdownRequirements(config) : null), [config]);
   const ctx = useConditionContext(
     needs,
     {
@@ -89,16 +91,18 @@ function useDisplayRules(config: CountdownConfig | null): boolean | undefined {
     config?.endpoint,
     api,
   );
-  if (!config?.enabled) return false;
-  return evaluateRules(config.rules, ctx);
+  if (!config?.enabled) return null;
+  return pickCountdownVariant(config, ctx) ?? null;
 }
 
 /**
  * The clock starts the first time the widget becomes visible in this checkout.
  * shopify.storage is scoped to the checkout session, so a new checkout starts
- * a fresh countdown while reloads and step changes keep the same one.
+ * a fresh countdown while reloads and step changes keep the same one. The
+ * start time is shared by all variants, so switching variant keeps the clock.
  */
-function useRemainingSeconds(config: CountdownConfig | null, active: boolean): number | null {
+function useRemainingSeconds(variant: CountdownVariant | null): number | null {
+  const active = variant !== null;
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -128,10 +132,10 @@ function useRemainingSeconds(config: CountdownConfig | null, active: boolean): n
   }, [active]);
 
   const remaining =
-    config && startedAt !== null
-      ? config.durationSeconds - Math.floor((now - startedAt) / 1000)
+    variant && startedAt !== null
+      ? variant.durationSeconds - Math.floor((now - startedAt) / 1000)
       : null;
-  const shouldRestart = remaining !== null && remaining <= 0 && config?.onExpire === "restart";
+  const shouldRestart = remaining !== null && remaining <= 0 && variant?.onExpire === "restart";
 
   useEffect(() => {
     if (!shouldRestart) return;
@@ -141,5 +145,5 @@ function useRemainingSeconds(config: CountdownConfig | null, active: boolean): n
     setNow(restart);
   }, [shouldRestart]);
 
-  return shouldRestart && config ? config.durationSeconds : remaining;
+  return shouldRestart && variant ? variant.durationSeconds : remaining;
 }

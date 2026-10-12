@@ -12,6 +12,7 @@ import {
   DELIVERY_LIMITS,
   DELIVERY_METAFIELD_KEY,
   EXAMPLE_DELIVERY_RULES,
+  catchAllIndex,
   deliveryRequirements,
   normalizeDeliveryConfig,
   type DeliveryConfig,
@@ -22,6 +23,7 @@ import { authenticate } from "../shopify.server";
 import { appEndpoint, readWidgetConfigs, writeWidgetConfig } from "../widgets/metafields.server";
 import { ConditionBuilder } from "../components/ConditionBuilder";
 import { DeliveryPreview } from "../components/DeliveryPreview";
+import { RankedCard, RankedIntro, ranked } from "../components/RankedCard";
 import { inputChecked, inputValue } from "../components/form-utils";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -56,7 +58,6 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const newId = () => Math.random().toString(36).slice(2, 10);
 const days = (e: Event) => Math.max(0, Math.min(DELIVERY_LIMITS.maxDays, Math.round(Number(inputValue(e)) || 0)));
 const windowError = (w: DeliveryWindow) => (w.maxDays < w.minDays ? "Must be at least the minimum" : undefined);
 const timeZoneError = (tz: string) => {
@@ -85,7 +86,7 @@ export default function DeliverySettings() {
 
   useEffect(() => {
     if (!fetcher.data || fetcher.state !== "idle") return;
-    if (fetcher.data.ok) shopify.toast.show("Delivery estimate saved");
+    if (fetcher.data.ok) shopify.toast.show("Estimate delivery date saved");
     else shopify.toast.show(`Save failed: ${fetcher.data.errors.join(", ")}`, { isError: true });
   }, [fetcher.data, fetcher.state, shopify]);
 
@@ -96,21 +97,14 @@ export default function DeliverySettings() {
   const setFallback = (patch: Partial<DeliveryConfig["fallback"]>) =>
     setConfig((c) => ({ ...c, fallback: { ...c.fallback, ...patch } }));
   const setRule = (id: string, patch: Partial<DeliveryRule>) =>
-    setConfig((c) => ({ ...c, rules: c.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
-  const moveRule = (index: number, by: -1 | 1) =>
-    setConfig((c) => {
-      const rules = [...c.rules];
-      [rules[index], rules[index + by]] = [rules[index + by], rules[index]];
-      return { ...c, rules };
-    });
-  const removeRule = (id: string) => setConfig((c) => ({ ...c, rules: c.rules.filter((r) => r.id !== id) }));
+    setConfig((c) => ({ ...c, rules: ranked.patch(c.rules, id, patch) }));
   const addRule = () =>
     setConfig((c) => ({
       ...c,
       rules: [
         ...c.rules,
         {
-          id: newId(),
+          id: ranked.newId(),
           name: `Rule ${c.rules.length + 1}`,
           enabled: true,
           minDays: c.fallback.minDays,
@@ -131,13 +125,13 @@ export default function DeliverySettings() {
   const preview = useMemo(() => normalizeDeliveryConfig(config), [config]);
   const needsBackend = deliveryRequirements(preview).customer;
   // A rule with no conditions matches everyone, so rules ranked below it never apply.
-  const catchAllIndex = config.rules.findIndex((r) => r.enabled && r.conditions.conditions.length === 0);
+  const catchAll = catchAllIndex(config.rules);
 
   const save = () => fetcher.submit({ config } as never, { method: "POST", encType: "application/json" });
   const discard = () => setConfig(saved);
 
   return (
-    <s-page heading="Delivery estimate" inlineSize="base">
+    <s-page heading="Estimate delivery date" inlineSize="base">
       <SaveBar id="delivery-save-bar" open={dirty}>
         <button variant="primary" onClick={save} loading={saving ? "" : undefined} disabled={hasErrors}></button>
         <button onClick={discard} disabled={saving}></button>
@@ -150,7 +144,7 @@ export default function DeliverySettings() {
       {isNew && (
         <s-banner tone="info" heading="Not configured yet">
           Defaults and two example rules (switched off) are loaded below. Check the tags and shipping names, save,
-          then add the “GQ Delivery Estimate” block under the shipping options in the checkout editor.
+          then add the “GQ Estimate Delivery Date” block under the shipping options in the checkout editor.
         </s-banner>
       )}
       {needsBackend && !hasEndpoint && (
@@ -163,7 +157,7 @@ export default function DeliverySettings() {
       <s-section heading="Status">
         <s-stack gap="base">
           <s-switch
-            label="Show delivery estimate in checkout"
+            label="Show estimated delivery date in checkout"
             details={updatedAt ? `Last saved ${new Date(updatedAt).toLocaleString()}` : "Never saved"}
             checked={config.enabled}
             onChange={(e) => set("enabled", inputChecked(e))}
@@ -201,112 +195,71 @@ export default function DeliverySettings() {
 
       <s-section heading="Rules">
         <s-stack gap="base">
-          <s-paragraph color="subdued">
-            Rules are checked from top to bottom and the <s-text type="strong">first match wins</s-text>, so put the
-            most specific rule first (for example, embroidery above VIP if embroidered items always take longer).
-            Days are working days, counted from when the order is processed.
-          </s-paragraph>
+          <RankedIntro>
+            Put the most specific rule first (for example, embroidery above VIP if embroidered items always take
+            longer). Days are working days, counted from when the order is processed.
+          </RankedIntro>
 
-          {config.rules.map((rule, i) => {
-            const shadowed = catchAllIndex !== -1 && i > catchAllIndex && rule.enabled;
-            return (
-              <s-box key={rule.id} padding="base" border="base" borderRadius="base">
-                <s-stack gap="base">
-                  <s-grid gridTemplateColumns="auto 1fr auto" gap="small-200" alignItems="center">
-                    <s-badge tone={rule.enabled ? "info" : "neutral"}>{`#${i + 1}`}</s-badge>
-                    <s-text-field
-                      label="Rule name"
-                      labelAccessibilityVisibility="exclusive"
-                      placeholder="Rule name (only you see this)"
-                      maxLength={DELIVERY_LIMITS.maxNameLength}
-                      value={rule.name}
-                      onInput={(e) => setRule(rule.id, { name: inputValue(e) })}
-                    />
-                    <s-stack direction="inline" gap="small-100">
-                      <s-button
-                        icon="arrow-up"
-                        variant="tertiary"
-                        accessibilityLabel="Move rule up"
-                        disabled={i === 0}
-                        onClick={() => moveRule(i, -1)}
-                      />
-                      <s-button
-                        icon="arrow-down"
-                        variant="tertiary"
-                        accessibilityLabel="Move rule down"
-                        disabled={i === config.rules.length - 1}
-                        onClick={() => moveRule(i, 1)}
-                      />
-                      <s-button
-                        icon="delete"
-                        variant="tertiary"
-                        tone="critical"
-                        accessibilityLabel="Delete rule"
-                        onClick={() => removeRule(rule.id)}
-                      />
-                    </s-stack>
-                  </s-grid>
+          {config.rules.map((rule, i) => (
+            <RankedCard
+              key={rule.id}
+              index={i}
+              count={config.rules.length}
+              name={rule.name}
+              enabled={rule.enabled}
+              catchAll={catchAll}
+              noun="Rule"
+              onChange={(patch) => setRule(rule.id, patch)}
+              onMove={(by) => set("rules", ranked.move(config.rules, i, by))}
+              onRemove={() => set("rules", ranked.remove(config.rules, rule.id))}
+            >
+              <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                <s-number-field
+                  label="Delivery from (working days)"
+                  min={0}
+                  max={DELIVERY_LIMITS.maxDays}
+                  step={1}
+                  value={String(rule.minDays)}
+                  onChange={(e) => setRule(rule.id, { minDays: days(e) })}
+                />
+                <s-number-field
+                  label="Delivery to (working days)"
+                  min={0}
+                  max={DELIVERY_LIMITS.maxDays}
+                  step={1}
+                  value={String(rule.maxDays)}
+                  error={windowError(rule)}
+                  onChange={(e) => setRule(rule.id, { maxDays: days(e) })}
+                />
+              </s-grid>
 
-                  <s-switch
-                    label="Rule is on"
-                    checked={rule.enabled}
-                    onChange={(e) => setRule(rule.id, { enabled: inputChecked(e) })}
-                  />
+              <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                <s-text-field
+                  label="Message override"
+                  placeholder="Blank = use the main message"
+                  maxLength={DELIVERY_LIMITS.maxMessageLength}
+                  value={rule.message}
+                  onInput={(e) => setRule(rule.id, { message: inputValue(e) })}
+                />
+                <s-text-field
+                  label="Message override (EN)"
+                  placeholder="Blank = use the main EN message"
+                  maxLength={DELIVERY_LIMITS.maxMessageLength}
+                  value={rule.translations.en ?? ""}
+                  onInput={(e) => setRule(rule.id, { translations: { ...rule.translations, en: inputValue(e) } })}
+                />
+              </s-grid>
 
-                  <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-                    <s-number-field
-                      label="Delivery from (working days)"
-                      min={0}
-                      max={DELIVERY_LIMITS.maxDays}
-                      step={1}
-                      value={String(rule.minDays)}
-                      onChange={(e) => setRule(rule.id, { minDays: days(e) })}
-                    />
-                    <s-number-field
-                      label="Delivery to (working days)"
-                      min={0}
-                      max={DELIVERY_LIMITS.maxDays}
-                      step={1}
-                      value={String(rule.maxDays)}
-                      error={windowError(rule)}
-                      onChange={(e) => setRule(rule.id, { maxDays: days(e) })}
-                    />
-                  </s-grid>
-
-                  <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-                    <s-text-field
-                      label="Message override"
-                      placeholder="Blank = use the main message"
-                      maxLength={DELIVERY_LIMITS.maxMessageLength}
-                      value={rule.message}
-                      onInput={(e) => setRule(rule.id, { message: inputValue(e) })}
-                    />
-                    <s-text-field
-                      label="Message override (EN)"
-                      placeholder="Blank = use the main EN message"
-                      maxLength={DELIVERY_LIMITS.maxMessageLength}
-                      value={rule.translations.en ?? ""}
-                      onInput={(e) => setRule(rule.id, { translations: { ...rule.translations, en: inputValue(e) } })}
-                    />
-                  </s-grid>
-
-                  <s-divider />
-                  <ConditionBuilder
-                    rules={rule.conditions}
-                    onChange={(conditions) => setRule(rule.id, { conditions })}
-                    currencyCode={currencyCode}
-                    matchLabel="Apply this rule when"
-                    emptyText="No conditions: this rule matches every checkout."
-                  />
-                  {shadowed && (
-                    <s-text tone="caution">
-                      {`Never applies: rule #${catchAllIndex + 1} has no conditions and matches every checkout first.`}
-                    </s-text>
-                  )}
-                </s-stack>
-              </s-box>
-            );
-          })}
+              <s-divider />
+              <ConditionBuilder
+                rules={rule.conditions}
+                onChange={(conditions) => setRule(rule.id, { conditions })}
+                currencyCode={currencyCode}
+                matchLabel="Apply this rule when"
+                emptyText="No conditions: this rule matches every checkout."
+              />
+            </RankedCard>
+          ))}
 
           <s-stack direction="inline" gap="base" alignItems="center">
             <s-button icon="plus" onClick={addRule} disabled={config.rules.length >= DELIVERY_LIMITS.maxRules}>

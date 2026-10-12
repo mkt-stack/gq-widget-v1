@@ -1,0 +1,31 @@
+# Membership callout: up arrow + short message pointing the buyer to the
+# member signup widget above. Config (up to 3 ranked callouts with conditions)
+# lives in the app-owned shop metafield declared below and is edited in the
+# app admin, so changes go live without redeploying.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Member Callout"
+handle = "checkout-member-callout"
+type = "ui_extension"
+uid = "ae64f5e0-bc94-9c7f-7026-60d751a7124d46a43880"
+
+# Directly above the Pay now button (recommended).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.actions.render-before"
+
+# Or place it anywhere in the checkout editor. Add only one of the two.
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.block.render"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_member_callout"
+
+[extensions.capabilities]
+# Storefront API: product tags / collections for conditions.
+api_access = true
+# App backend: customer tag / login conditions (requires approval in the Dev Dashboard).
+network_access = true

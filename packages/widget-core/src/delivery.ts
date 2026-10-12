@@ -1,6 +1,6 @@
-import { conditionRequirements, evaluateRules } from "./conditions";
-import type { ConditionContext, ConditionRequirements, DisplayRules } from "./conditions";
-import { normalizeRules } from "./normalize";
+import type { ConditionContext, ConditionRequirements } from "./conditions";
+import { normalizeRankedList, pickRanked, rankedRequirements, type RankedItem } from "./ranked";
+import { clampInt as intIn, clampText, normalizeEndpoint, normalizeTextTranslations, pickLanguage } from "./util";
 
 /** Shop metafield (app-owned, `$app` namespace) that stores this widget's config. */
 export const DELIVERY_METAFIELD_KEY = "widget_delivery_estimate";
@@ -21,16 +21,11 @@ export interface DeliveryWindow {
   maxDays: number;
 }
 
-export interface DeliveryRule extends DeliveryWindow {
-  id: string;
-  /** Admin-only label, e.g. "VIP fast shipping". */
-  name: string;
-  enabled: boolean;
+export interface DeliveryRule extends DeliveryWindow, RankedItem {
   /** Overrides the widget message when this rule wins. Blank = use the widget message. */
   message: string;
   /** Per-language overrides of `message`, keyed by ISO code. */
   translations: Record<string, string>;
-  conditions: DisplayRules;
 }
 
 export interface DeliverySchedule {
@@ -116,23 +111,7 @@ export const EXAMPLE_DELIVERY_RULES: DeliveryRule[] = [
 // Normalization
 // ---------------------------------------------------------------------------
 
-const intIn = (n: unknown, min: number, max: number, fallback: number) => {
-  const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : fallback;
-  return Math.min(max, Math.max(min, v));
-};
-
-const text = (v: unknown, fallback: string, max = DELIVERY_LIMITS.maxMessageLength) =>
-  typeof v === "string" ? v.slice(0, max) : fallback;
-
-function normalizeTranslations(raw: unknown, fallback: Record<string, string>): Record<string, string> {
-  if (!raw || typeof raw !== "object") return { ...fallback };
-  const out: Record<string, string> = {};
-  for (const [lang, v] of Object.entries(raw)) {
-    if (!/^[a-z]{2}(-[a-z]{2})?$/i.test(lang) || typeof v !== "string" || !v.trim()) continue;
-    out[lang.toLowerCase()] = text(v, "");
-  }
-  return out;
-}
+const text = (v: unknown, fallback: string) => clampText(v, fallback, DELIVERY_LIMITS.maxMessageLength);
 
 function normalizeWindow(raw: Partial<DeliveryWindow> | undefined, fallback: DeliveryWindow): DeliveryWindow {
   const minDays = intIn(raw?.minDays, 0, DELIVERY_LIMITS.maxDays, fallback.minDays);
@@ -172,18 +151,11 @@ function normalizeSchedule(raw: unknown): DeliverySchedule {
   };
 }
 
-function normalizeRule(raw: unknown, index: number): DeliveryRule | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Partial<DeliveryRule>;
-  const name = text(r.name, "", DELIVERY_LIMITS.maxNameLength).trim();
+function normalizeRuleFields(r: Record<string, unknown>): Omit<DeliveryRule, keyof RankedItem> {
   return {
-    id: typeof r.id === "string" && r.id ? r.id : `r${index}`,
-    name: name || `Rule ${index + 1}`,
-    enabled: r.enabled !== false,
-    ...normalizeWindow(r, DEFAULT_DELIVERY_CONFIG.fallback),
+    ...normalizeWindow(r as Partial<DeliveryWindow>, DEFAULT_DELIVERY_CONFIG.fallback),
     message: text(r.message, ""),
-    translations: normalizeTranslations(r.translations, {}),
-    conditions: normalizeRules(r.conditions),
+    translations: normalizeTextTranslations(r.translations),
   };
 }
 
@@ -191,23 +163,20 @@ function normalizeRule(raw: unknown, index: number): DeliveryRule | null {
 export function normalizeDeliveryConfig(raw: unknown): DeliveryConfig {
   const d = DEFAULT_DELIVERY_CONFIG;
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<DeliveryConfig>;
-  const rules = (Array.isArray(r.rules) ? r.rules : [])
-    .map(normalizeRule)
-    .filter((x): x is DeliveryRule => x !== null)
-    .slice(0, DELIVERY_LIMITS.maxRules);
+  const rules = normalizeRankedList<DeliveryRule>(r.rules, DELIVERY_LIMITS.maxRules, "Rule", normalizeRuleFields);
   return {
     version: 1,
     enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
     appearance: r.appearance === "banner" ? "banner" : "compact",
     message: text(r.message, d.message),
-    translations: normalizeTranslations(r.translations ?? d.translations, {}),
+    translations: r.translations === undefined ? { ...d.translations } : normalizeTextTranslations(r.translations),
     fallback: {
       enabled: typeof r.fallback?.enabled === "boolean" ? r.fallback.enabled : d.fallback.enabled,
       ...normalizeWindow(r.fallback, d.fallback),
     },
     rules,
     schedule: normalizeSchedule(r.schedule),
-    endpoint: typeof r.endpoint === "string" && /^https:\/\//.test(r.endpoint) ? r.endpoint : undefined,
+    endpoint: normalizeEndpoint(r.endpoint),
   };
 }
 
@@ -217,7 +186,7 @@ export function normalizeDeliveryConfig(raw: unknown): DeliveryConfig {
 
 /** Everything any enabled rule needs, so the extension fetches only that. */
 export function deliveryRequirements(config: DeliveryConfig): ConditionRequirements {
-  return conditionRequirements(...config.rules.filter((r) => r.enabled).map((r) => r.conditions));
+  return rankedRequirements(config.rules);
 }
 
 export interface DeliveryChoice {
@@ -235,12 +204,9 @@ export function pickDeliveryWindow(
   config: DeliveryConfig,
   ctx: ConditionContext,
 ): DeliveryChoice | null | undefined {
-  for (const rule of config.rules) {
-    if (!rule.enabled) continue;
-    const match = evaluateRules(rule.conditions, ctx);
-    if (match === undefined) return undefined;
-    if (match) return { window: rule, rule };
-  }
+  const rule = pickRanked(config.rules, ctx);
+  if (rule === undefined) return undefined;
+  if (rule) return { window: rule, rule };
   return config.fallback.enabled ? { window: config.fallback, rule: null } : null;
 }
 
@@ -250,8 +216,7 @@ export function resolveDeliveryMessage(
   rule: DeliveryRule | null,
   language: string | undefined,
 ): string {
-  const lang = (language ?? "").toLowerCase();
-  const pick = (t: Record<string, string>) => t[lang] || t[lang.split("-")[0]];
+  const pick = (t: Record<string, string>) => pickLanguage(t, language);
   return (
     (rule && pick(rule.translations)) ||
     pick(config.translations) ||

@@ -1,7 +1,11 @@
 export * from "./conditions";
 export * from "./normalize";
+export * from "./util";
+export * from "./ranked";
 export * from "./countdown";
 export * from "./delivery";
+export * from "./callout";
+export * from "./guarantee";
 
 /** Every widget stores its config in a shop metafield under this app-owned namespace. */
 export const WIDGET_METAFIELD_NAMESPACE = "$app";

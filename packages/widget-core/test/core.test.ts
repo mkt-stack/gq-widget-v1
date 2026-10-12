@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_COUNTDOWN_CONFIG,
+  DEFAULT_GUARANTEE_CONFIG,
+  EXAMPLE_CALLOUTS,
+  calloutRequirements,
   conditionRequirements,
+  normalizeCalloutConfig,
+  normalizeGuaranteeConfig,
+  pickCallout,
+  pickCountdownVariant,
+  resolveCalloutMessage,
+  resolveGuaranteeText,
   evaluateRules,
   formatRemaining,
   normalizeCountdownConfig,
@@ -119,25 +129,67 @@ describe("normalizeRules", () => {
 
 describe("countdown config", () => {
   it("falls back to defaults and clamps values", () => {
-    const c = normalizeCountdownConfig({ durationSeconds: 5, warningThresholdSeconds: 9999, appearance: "x", endpoint: "http://insecure" });
-    expect(c.durationSeconds).toBe(30);
-    expect(c.warningThresholdSeconds).toBe(30);
+    const c = normalizeCountdownConfig({ variants: [{ durationSeconds: 5, warningThresholdSeconds: 9999 }], appearance: "x", endpoint: "http://insecure" });
+    expect(c.variants[0].durationSeconds).toBe(30);
+    expect(c.variants[0].warningThresholdSeconds).toBe(30);
+    expect(c.variants[0].name).toBe("Countdown 1");
     expect(c.appearance).toBe("compact");
     expect(c.endpoint).toBeUndefined();
     expect(c.enabled).toBe(false);
   });
 
+  it("migrates a v1 single countdown into one variant", () => {
+    const v1 = {
+      version: 1,
+      enabled: true,
+      durationSeconds: 300,
+      warningThresholdSeconds: 60,
+      appearance: "banner",
+      onExpire: "restart",
+      messages: { message: "A {time}", warningMessage: "B {time}", expiredMessage: "C" },
+      translations: { en: { message: "EN {time}" } },
+      rules: { match: "any", conditions: [{ id: "x", type: "customer_tag", operator: "any", values: ["vip"] }] },
+      endpoint: "https://app.example.com",
+    };
+    const c = normalizeCountdownConfig(v1);
+    expect(c).toMatchObject({ version: 2, enabled: true, appearance: "banner", endpoint: "https://app.example.com" });
+    expect(c.variants).toHaveLength(1);
+    expect(c.variants[0]).toMatchObject({
+      id: "default",
+      enabled: true,
+      durationSeconds: 300,
+      warningThresholdSeconds: 60,
+      onExpire: "restart",
+      messages: v1.messages,
+      translations: { en: { message: "EN {time}" } },
+      conditions: v1.rules,
+    });
+  });
+
+  it("keeps at most 5 ranked variants and picks the first match", () => {
+    const c = normalizeCountdownConfig({
+      variants: Array.from({ length: 7 }, (_, i) => ({
+        id: `v${i}`,
+        conditions: { match: "all", conditions: [{ id: "s", type: "subtotal", operator: "gte", number: 1000 * (5 - i) }] },
+      })),
+    });
+    expect(c.variants).toHaveLength(5);
+    expect(pickCountdownVariant(c, ctx)?.id).toBe("v4"); // subtotal 1500 ≥ 1000
+    expect(pickCountdownVariant(c, { ...ctx, subtotal: 0 })).toBeNull();
+  });
+
   it("is stable when normalized twice", () => {
-    const once = normalizeCountdownConfig({ enabled: true, translations: { en: { message: "Hi {time}", warningMessage: "" } } });
+    const once = normalizeCountdownConfig({ enabled: true, variants: [{ translations: { en: { message: "Hi {time}", warningMessage: "" } } }] });
     expect(normalizeCountdownConfig(once)).toEqual(once);
+    expect(normalizeCountdownConfig(DEFAULT_COUNTDOWN_CONFIG)).toEqual(DEFAULT_COUNTDOWN_CONFIG);
   });
 
   it("resolves translations field by field with region fallback", () => {
-    const c = normalizeCountdownConfig({ translations: { en: { message: "EN {time}" } } });
-    const en = resolveCountdownMessages(c, "en-US");
+    const [v] = normalizeCountdownConfig({ variants: [{ translations: { en: { message: "EN {time}" } } }] }).variants;
+    const en = resolveCountdownMessages(v, "en-US");
     expect(en.message).toBe("EN {time}");
-    expect(en.warningMessage).toBe(c.messages.warningMessage);
-    expect(resolveCountdownMessages(c, "th").message).toBe(c.messages.message);
+    expect(en.warningMessage).toBe(v.messages.warningMessage);
+    expect(resolveCountdownMessages(v, "th").message).toBe(v.messages.message);
   });
 
   it("formats and splits time", () => {
@@ -146,5 +198,44 @@ describe("countdown config", () => {
     expect(formatRemaining(-3)).toBe("00:00");
     expect(splitOnTime("Pay within {time} now")).toEqual({ before: "Pay within ", after: " now", hasTime: true });
     expect(splitOnTime("No token").hasTime).toBe(false);
+  });
+});
+
+describe("membership callout", () => {
+  const config = normalizeCalloutConfig({ enabled: true, callouts: [...EXAMPLE_CALLOUTS, EXAMPLE_CALLOUTS[0], { message: "x" }] });
+
+  it("keeps at most 3 callouts", () => {
+    expect(config.callouts).toHaveLength(3);
+    expect(normalizeCalloutConfig(config)).toEqual(config);
+  });
+
+  it("targets guests, logged-in non-members and hides for members", () => {
+    expect(pickCallout(config, ctx)).toBeUndefined(); // customer facts not loaded yet
+    expect(pickCallout(config, { ...ctx, customer: { loggedIn: false, tags: [] } })?.id).toBe("guest");
+    expect(pickCallout(config, { ...ctx, customer: { loggedIn: true, tags: [] } })?.id).toBe("non-member");
+    const members = normalizeCalloutConfig({ callouts: EXAMPLE_CALLOUTS });
+    expect(pickCallout(members, { ...ctx, customer: { loggedIn: true, tags: ["Member"] } })).toBeNull();
+    expect(calloutRequirements(members)).toEqual({ productFacts: false, customer: true, customerTags: ["member"] });
+  });
+
+  it("resolves the message per language", () => {
+    expect(resolveCalloutMessage(config.callouts[0], "en")).toBe("Get free shipping: sign up above");
+    expect(resolveCalloutMessage(config.callouts[0], "th")).toBe("กดรับสิทธิ์ส่งฟรีด้านบน");
+  });
+});
+
+describe("guarantee row", () => {
+  it("defaults to three items and caps at three", () => {
+    expect(normalizeGuaranteeConfig(undefined).items).toHaveLength(3);
+    const c = normalizeGuaranteeConfig({ items: Array.from({ length: 5 }, () => ({ icon: "nope", title: "T" })) });
+    expect(c.items).toHaveLength(3);
+    expect(c.items[0]).toMatchObject({ icon: "check-circle", title: "T", subtitle: "" });
+    expect(normalizeGuaranteeConfig(c)).toEqual(c);
+  });
+
+  it("resolves text field by field", () => {
+    const [item] = DEFAULT_GUARANTEE_CONFIG.items;
+    expect(resolveGuaranteeText(item, "en")).toEqual({ title: "Free exchange", subtitle: "up to 30 days" });
+    expect(resolveGuaranteeText({ ...item, translations: { en: { title: "Swap" } } }, "en").subtitle).toBe(item.subtitle);
   });
 });

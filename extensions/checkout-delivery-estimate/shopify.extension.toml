@@ -1,11 +1,11 @@
-# Estimated delivery date, shown under the shipping options.
+# Estimate delivery date, shown under the shipping options.
 # Config (message, ranked rules, working days, cutoff) is NOT set here: the
 # app's admin page writes it to the app-owned shop metafield declared below,
 # so changes go live without redeploying the extension.
 api_version = "2026-07"
 
 [[extensions]]
-name = "GQ Delivery Estimate"
+name = "GQ Estimate Delivery Date"
 handle = "checkout-delivery-estimate"
 type = "ui_extension"
 uid = "f4f68403-39e8-d49b-8cbe-1cb551213193f6cbb0e7"

@@ -1,5 +1,7 @@
-import type { DisplayRules } from "./conditions";
+import type { ConditionContext } from "./conditions";
 import { normalizeRules } from "./normalize";
+import { normalizeRankedList, pickRanked, rankedRequirements, type RankedItem } from "./ranked";
+import { clampInt, clampText, isLanguageCode, normalizeEndpoint, pickLanguage } from "./util";
 
 /** Shop metafield (app-owned, `$app` namespace) that stores this widget's config. */
 export const COUNTDOWN_METAFIELD_KEY = "widget_countdown";
@@ -15,19 +17,24 @@ export interface CountdownMessages {
   expiredMessage: string;
 }
 
-export interface CountdownConfig {
-  version: 1;
-  enabled: boolean;
+/** One ranked countdown: the first enabled variant whose conditions match is shown. */
+export interface CountdownVariant extends RankedItem {
   durationSeconds: number;
   /** Switch to the warning message + critical tone under this many seconds. */
   warningThresholdSeconds: number;
-  appearance: "compact" | "banner";
   onExpire: "message" | "hide" | "restart";
   /** Default-language copy (the store's primary language). */
   messages: CountdownMessages;
   /** Per-language overrides keyed by ISO code, e.g. { en: {...} }. Blank fields fall back. */
   translations: Record<string, Partial<CountdownMessages>>;
-  rules: DisplayRules;
+}
+
+export interface CountdownConfig {
+  version: 2;
+  enabled: boolean;
+  appearance: "compact" | "banner";
+  /** Ranked, at most `COUNTDOWN_LIMITS.maxVariants`. */
+  variants: CountdownVariant[];
   /** App backend origin, written by the admin on save. Needed for customer-tag rules. */
   endpoint?: string;
 }
@@ -36,14 +43,17 @@ export const COUNTDOWN_LIMITS = {
   minDuration: 30,
   maxDuration: 24 * 60 * 60,
   maxMessageLength: 200,
+  maxVariants: 5,
 };
 
-export const DEFAULT_COUNTDOWN_CONFIG: CountdownConfig = {
-  version: 1,
-  enabled: false,
+const MESSAGE_KEYS = ["message", "warningMessage", "expiredMessage"] as const;
+
+export const DEFAULT_COUNTDOWN_VARIANT: CountdownVariant = {
+  id: "default",
+  name: "Everyone",
+  enabled: true,
   durationSeconds: 10 * 60,
   warningThresholdSeconds: 2 * 60,
-  appearance: "compact",
   onExpire: "message",
   messages: {
     message: "ชำระเงินภายใน {time} เพื่อไม่ให้พลาดสินค้าที่คุณเลือก",
@@ -57,16 +67,17 @@ export const DEFAULT_COUNTDOWN_CONFIG: CountdownConfig = {
       expiredMessage: "Time's up — items in your cart may sell out soon",
     },
   },
-  rules: { match: "all", conditions: [] },
+  conditions: { match: "all", conditions: [] },
 };
 
-const clamp = (n: unknown, min: number, max: number, fallback: number) => {
-  const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : fallback;
-  return Math.min(max, Math.max(min, v));
+export const DEFAULT_COUNTDOWN_CONFIG: CountdownConfig = {
+  version: 2,
+  enabled: false,
+  appearance: "compact",
+  variants: [DEFAULT_COUNTDOWN_VARIANT],
 };
 
-const text = (v: unknown, fallback: string) =>
-  typeof v === "string" ? v.slice(0, COUNTDOWN_LIMITS.maxMessageLength) : fallback;
+const text = (v: unknown, fallback: string) => clampText(v, fallback, COUNTDOWN_LIMITS.maxMessageLength);
 
 function normalizeMessages(raw: unknown, fallback: CountdownMessages): CountdownMessages {
   const m = (raw ?? {}) as Partial<CountdownMessages>;
@@ -77,54 +88,69 @@ function normalizeMessages(raw: unknown, fallback: CountdownMessages): Countdown
   };
 }
 
-/** Coerce anything (stored JSON, form input) into a valid config. Never throws. */
-export function normalizeCountdownConfig(raw: unknown): CountdownConfig {
-  const d = DEFAULT_COUNTDOWN_CONFIG;
-  const r = (raw && typeof raw === "object" ? raw : {}) as Partial<CountdownConfig>;
-  const durationSeconds = clamp(
-    r.durationSeconds,
-    COUNTDOWN_LIMITS.minDuration,
-    COUNTDOWN_LIMITS.maxDuration,
-    d.durationSeconds,
-  );
-
-  const translations: CountdownConfig["translations"] = {};
-  const rawTranslations = r.translations ?? d.translations;
-  for (const [lang, msgs] of Object.entries(rawTranslations)) {
-    if (!/^[a-z]{2}(-[a-z]{2})?$/i.test(lang) || !msgs) continue;
+function normalizeMessageTranslations(raw: unknown): CountdownVariant["translations"] {
+  const out: CountdownVariant["translations"] = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [lang, msgs] of Object.entries(raw)) {
+    if (!isLanguageCode(lang) || !msgs || typeof msgs !== "object") continue;
     const entry: Partial<CountdownMessages> = {};
-    for (const k of ["message", "warningMessage", "expiredMessage"] as const) {
+    for (const k of MESSAGE_KEYS) {
       const v = (msgs as Partial<CountdownMessages>)[k];
       if (typeof v === "string" && v.trim()) entry[k] = text(v, "");
     }
-    translations[lang.toLowerCase()] = entry;
+    out[lang.toLowerCase()] = entry;
   }
+  return out;
+}
 
+function normalizeVariantFields(r: Record<string, unknown>): Omit<CountdownVariant, keyof RankedItem> {
+  const d = DEFAULT_COUNTDOWN_VARIANT;
+  const durationSeconds = clampInt(r.durationSeconds, COUNTDOWN_LIMITS.minDuration, COUNTDOWN_LIMITS.maxDuration, d.durationSeconds);
   return {
-    version: 1,
-    enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
     durationSeconds,
-    warningThresholdSeconds: clamp(r.warningThresholdSeconds, 0, durationSeconds, d.warningThresholdSeconds),
-    appearance: r.appearance === "banner" ? "banner" : "compact",
+    warningThresholdSeconds: clampInt(r.warningThresholdSeconds, 0, durationSeconds, d.warningThresholdSeconds),
     onExpire: r.onExpire === "hide" || r.onExpire === "restart" ? r.onExpire : "message",
     messages: normalizeMessages(r.messages, d.messages),
-    translations,
-    rules: normalizeRules(r.rules),
-    endpoint: typeof r.endpoint === "string" && /^https:\/\//.test(r.endpoint) ? r.endpoint : undefined,
+    translations: r.translations === undefined ? { ...d.translations } : normalizeMessageTranslations(r.translations),
   };
 }
 
+/** Coerce anything (stored JSON incl. the v1 single-countdown shape, form input) into a valid config. Never throws. */
+export function normalizeCountdownConfig(raw: unknown): CountdownConfig {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  let rawVariants = r.variants;
+  // v1 stored a single countdown at the top level, with its conditions under `rules`.
+  if (!Array.isArray(rawVariants) && (r.version === 1 || "durationSeconds" in r || "messages" in r)) {
+    rawVariants = [{ ...r, id: "default", name: "Everyone", enabled: true, conditions: normalizeRules(r.rules) }];
+  }
+  const variants = Array.isArray(rawVariants)
+    ? normalizeRankedList<CountdownVariant>(rawVariants, COUNTDOWN_LIMITS.maxVariants, "Countdown", normalizeVariantFields)
+    : [DEFAULT_COUNTDOWN_VARIANT];
+  return {
+    version: 2,
+    enabled: typeof r.enabled === "boolean" ? r.enabled : DEFAULT_COUNTDOWN_CONFIG.enabled,
+    appearance: r.appearance === "banner" ? "banner" : "compact",
+    variants,
+    endpoint: normalizeEndpoint(r.endpoint),
+  };
+}
+
+export const countdownRequirements = (config: CountdownConfig) => rankedRequirements(config.variants);
+
+/** The variant to show: undefined while undecided, null when none match. */
+export const pickCountdownVariant = (config: CountdownConfig, ctx: ConditionContext) =>
+  pickRanked(config.variants, ctx);
+
 /** Pick copy for a buyer language ("en", "en-US"), falling back field by field. */
 export function resolveCountdownMessages(
-  config: CountdownConfig,
+  variant: CountdownVariant,
   language: string | undefined,
 ): CountdownMessages {
-  const lang = (language ?? "").toLowerCase();
-  const override = config.translations[lang] ?? config.translations[lang.split("-")[0]] ?? {};
+  const override = pickLanguage(variant.translations, language) ?? {};
   return {
-    message: override.message || config.messages.message,
-    warningMessage: override.warningMessage || config.messages.warningMessage,
-    expiredMessage: override.expiredMessage || config.messages.expiredMessage,
+    message: override.message || variant.messages.message,
+    warningMessage: override.warningMessage || variant.messages.warningMessage,
+    expiredMessage: override.expiredMessage || variant.messages.expiredMessage,
   };
 }
 

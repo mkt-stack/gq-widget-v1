@@ -1,0 +1,30 @@
+# Guarantee / trust row: up to 3 centred columns of icon + text.
+# Config lives in the app-owned shop metafield declared below and is edited in
+# the app admin, so changes go live without redeploying.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Guarantee Row"
+handle = "checkout-guarantee"
+type = "ui_extension"
+uid = "002c834f-2ed2-fd11-c7a0-a6af05955572afc307a5"
+
+# Under the Pay now button and policy links (recommended).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.footer.render-after"
+
+# Or place it anywhere in the checkout editor. Add only one of the two.
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.block.render"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_guarantee"
+
+[extensions.capabilities]
+# Storefront API: product tags / collections for display conditions.
+api_access = true
+# App backend: customer-tag conditions (requires approval in the Dev Dashboard).
+network_access = true
