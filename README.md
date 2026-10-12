@@ -46,6 +46,7 @@ Shows something like **"Estimated delivery Thu 4th - Fri 5th Oct"** (Thai: "аЄДа
 
 - **Rules:** up to 5, each with its own delivery window (min and max working days), an optional message override (plus EN), and display conditions.
 - **Ranking:** rules are checked top to bottom and the **first match wins**. If a higher rule is still waiting on product or customer facts, the widget waits instead of briefly showing a lower rule.
+- **Colour:** set the banner colour (or the icon and text colour in compact) to default (blue banner), green, blue, yellow, red or grey. Each rule can override it, e.g. VIP green and embroidery yellow. Grey renders as a subdued box.
 - **Default estimate:** used when no rule matches. Turn it off to show nothing in that case.
 - **Dates:**
   - Days are working days, counted from the processing day. That is today if it's before the cutoff hour (shop time zone, default Asia/Bangkok, 14:00); otherwise it's the next working day.

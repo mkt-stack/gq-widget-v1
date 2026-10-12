@@ -51,16 +51,28 @@ export function DeliveryPreview({ config }: { config: DeliveryConfig }) {
       {showsNothing ? (
         <s-text color="subdued">Nothing is shown when no rule matches.</s-text>
       ) : (
-        <s-box padding="small-200 base" border="base" borderRadius="base">
-          <s-stack direction="inline" gap="small-200" alignItems="center">
-            {config.appearance === "compact" && <s-icon type="delivery" />}
-            <s-paragraph>
+        (() => {
+          // Mirrors the extension: rule colour, else widget colour; grey = subdued box.
+          const tone = rule?.tone || config.tone;
+          const grey = tone === "neutral";
+          const coloured = tone !== "auto" && !grey;
+          const text = (
+            <s-paragraph tone={config.appearance === "compact" && coloured ? tone : "auto"} color={grey ? "subdued" : "base"}>
               {before}
               <s-text type="strong">{hasToken ? dates : ` ${dates}`}</s-text>
               {after}
             </s-paragraph>
-          </s-stack>
-        </s-box>
+          );
+          if (config.appearance === "banner" && !grey) return <s-banner tone={coloured ? tone : "info"}>{text}</s-banner>;
+          return (
+            <s-box padding="small-200 base" border="base" borderRadius="base" background={grey ? "subdued" : "transparent"}>
+              <s-stack direction="inline" gap="small-200" alignItems="center">
+                <s-icon type="delivery" tone={coloured ? tone : grey ? "neutral" : "auto"} />
+                {text}
+              </s-stack>
+            </s-box>
+          );
+        })()
       )}
 
       <s-divider />

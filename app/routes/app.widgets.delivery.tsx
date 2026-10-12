@@ -11,12 +11,14 @@ import {
   DEFAULT_DELIVERY_CONFIG,
   DELIVERY_LIMITS,
   DELIVERY_METAFIELD_KEY,
+  DELIVERY_TONES,
   EXAMPLE_DELIVERY_RULES,
   catchAllIndex,
   deliveryRequirements,
   normalizeDeliveryConfig,
   type DeliveryConfig,
   type DeliveryRule,
+  type DeliveryTone,
   type DeliveryWindow,
 } from "@gq/widget-core";
 import { authenticate } from "../shopify.server";
@@ -111,6 +113,7 @@ export default function DeliverySettings() {
           maxDays: c.fallback.maxDays,
           message: "",
           translations: {},
+          tone: "",
           conditions: { match: "all", conditions: [] },
         },
       ],
@@ -169,6 +172,18 @@ export default function DeliverySettings() {
           >
             <s-option value="compact">Compact (icon + text)</s-option>
             <s-option value="banner">Banner</s-option>
+          </s-select>
+          <s-select
+            label="Colour"
+            details="Banner colour, or icon and text colour in compact. Rules can override it. Follows your checkout branding."
+            value={config.tone}
+            onChange={(e) => set("tone", inputValue(e) as DeliveryTone)}
+          >
+            {(Object.keys(DELIVERY_TONES) as DeliveryTone[]).map((t) => (
+              <s-option key={t} value={t}>
+                {DELIVERY_TONES[t]}
+              </s-option>
+            ))}
           </s-select>
         </s-stack>
       </s-section>
@@ -248,6 +263,18 @@ export default function DeliverySettings() {
                   value={rule.translations.en ?? ""}
                   onInput={(e) => setRule(rule.id, { translations: { ...rule.translations, en: inputValue(e) } })}
                 />
+                <s-select
+                  label="Colour override"
+                  value={rule.tone}
+                  onChange={(e) => setRule(rule.id, { tone: inputValue(e) as DeliveryTone | "" })}
+                >
+                  <s-option value="">Use the widget colour</s-option>
+                  {(Object.keys(DELIVERY_TONES) as DeliveryTone[]).map((t) => (
+                    <s-option key={t} value={t}>
+                      {DELIVERY_TONES[t]}
+                    </s-option>
+                  ))}
+                </s-select>
               </s-grid>
 
               <s-divider />

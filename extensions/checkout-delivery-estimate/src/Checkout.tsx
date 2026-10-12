@@ -57,19 +57,37 @@ function DeliveryEstimate() {
   const language = shopify.localization.language.value.isoCode;
   const dates = formatDeliveryRange(estimateDeliveryRange(choice.window, config.schedule), language);
   const { before, after, hasToken } = splitOnToken(resolveDeliveryMessage(config, choice.rule, language), DATE_TOKEN);
+  // The winning rule's colour, else the widget colour.
+  const tone = choice.rule?.tone || config.tone;
+  const grey = tone === "neutral";
+  const coloured = tone !== "auto" && !grey;
   const body = (
-    <s-paragraph>
+    <s-paragraph
+      tone={config.appearance === "compact" && coloured ? tone : "auto"}
+      color={grey ? "subdued" : "base"}
+    >
       {before}
       <s-text type="strong">{hasToken ? dates : ` ${dates}`}</s-text>
       {after}
     </s-paragraph>
   );
 
-  if (config.appearance === "banner") return <s-banner tone="info">{body}</s-banner>;
+  if (config.appearance === "banner") {
+    // Checkout banners have no grey tone, so grey renders as a subdued box.
+    if (!grey) return <s-banner tone={coloured ? tone : "info"}>{body}</s-banner>;
+    return (
+      <s-box padding="base" border="base" borderRadius="base" background="subdued">
+        <s-stack direction="inline" gap="small-200" alignItems="center">
+          <s-icon type="truck" tone="neutral" size="small" />
+          {body}
+        </s-stack>
+      </s-box>
+    );
+  }
 
   return (
     <s-stack direction="inline" gap="small-200" alignItems="center">
-      <s-icon type="truck" size="small" />
+      <s-icon type="truck" size="small" tone={coloured ? tone : grey ? "neutral" : "auto"} />
       {body}
     </s-stack>
   );

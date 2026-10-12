@@ -15,6 +15,24 @@ export const DELIVERY_LIMITS = {
   maxHolidays: 100,
 };
 
+/**
+ * Colour of the banner (or of the icon and text in compact). "auto" keeps the
+ * original look: blue info banner / normal text. "neutral" is a grey box,
+ * because checkout banners have no grey tone.
+ */
+export type DeliveryTone = "auto" | "success" | "info" | "warning" | "critical" | "neutral";
+
+export const DELIVERY_TONES: Record<DeliveryTone, string> = {
+  auto: "Default (blue banner / normal text)",
+  success: "Green (success)",
+  info: "Blue (info)",
+  warning: "Yellow (warning)",
+  critical: "Red (critical)",
+  neutral: "Grey",
+};
+
+const isDeliveryTone = (v: unknown): v is DeliveryTone => typeof v === "string" && v in DELIVERY_TONES;
+
 /** Delivery time in working days, counted from the day the order is processed. */
 export interface DeliveryWindow {
   minDays: number;
@@ -26,6 +44,8 @@ export interface DeliveryRule extends DeliveryWindow, RankedItem {
   message: string;
   /** Per-language overrides of `message`, keyed by ISO code. */
   translations: Record<string, string>;
+  /** Colour when this rule wins. "" = use the widget colour. */
+  tone: DeliveryTone | "";
 }
 
 export interface DeliverySchedule {
@@ -43,6 +63,8 @@ export interface DeliveryConfig {
   version: 1;
   enabled: boolean;
   appearance: "compact" | "banner";
+  /** Default colour; rules can override it. */
+  tone: DeliveryTone;
   /** Default-language copy. {date} is replaced by the date range. */
   message: string;
   /** Per-language overrides keyed by ISO code, e.g. { en: "..." }. */
@@ -67,6 +89,7 @@ export const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
   version: 1,
   enabled: false,
   appearance: "compact",
+  tone: "auto",
   message: "คาดว่าจะได้รับสินค้า {date}",
   translations: { en: "Estimated delivery {date}" },
   fallback: { enabled: true, minDays: 2, maxDays: 4 },
@@ -84,6 +107,7 @@ export const EXAMPLE_DELIVERY_RULES: DeliveryRule[] = [
     maxDays: 2,
     message: "",
     translations: {},
+    tone: "success",
     conditions: {
       match: "any",
       conditions: [
@@ -100,6 +124,7 @@ export const EXAMPLE_DELIVERY_RULES: DeliveryRule[] = [
     maxDays: 10,
     message: "สินค้าปักชื่อ คาดว่าจะได้รับ {date}",
     translations: { en: "Embroidered items arrive {date}" },
+    tone: "",
     conditions: {
       match: "all",
       conditions: [{ id: "emb-tag", type: "product_tag", operator: "any", values: ["embroidery"] }],
@@ -156,6 +181,7 @@ function normalizeRuleFields(r: Record<string, unknown>): Omit<DeliveryRule, key
     ...normalizeWindow(r as Partial<DeliveryWindow>, DEFAULT_DELIVERY_CONFIG.fallback),
     message: text(r.message, ""),
     translations: normalizeTextTranslations(r.translations),
+    tone: isDeliveryTone(r.tone) ? r.tone : "",
   };
 }
 
@@ -168,6 +194,7 @@ export function normalizeDeliveryConfig(raw: unknown): DeliveryConfig {
     version: 1,
     enabled: typeof r.enabled === "boolean" ? r.enabled : d.enabled,
     appearance: r.appearance === "banner" ? "banner" : "compact",
+    tone: isDeliveryTone(r.tone) ? r.tone : "auto",
     message: text(r.message, d.message),
     translations: r.translations === undefined ? { ...d.translations } : normalizeTextTranslations(r.translations),
     fallback: {

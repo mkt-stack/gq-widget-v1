@@ -94,6 +94,13 @@ describe("delivery rules", () => {
     expect(normalizeDeliveryConfig(c)).toEqual(c);
   });
 
+  it("defaults colour to auto and keeps valid rule overrides", () => {
+    const c = normalizeDeliveryConfig({ tone: "pink", rules: [{ tone: "success" }, { tone: "bad" }] });
+    expect(c.tone).toBe("auto");
+    expect(c.rules.map((r) => r.tone)).toEqual(["success", ""]);
+    expect(normalizeDeliveryConfig({ tone: "neutral" }).tone).toBe("neutral");
+  });
+
   it("drops invalid schedule values", () => {
     const c = normalizeDeliveryConfig({ schedule: { timeZone: "Mars/Base", workingDays: [], holidays: ["2026-02-30", "2026-12-31"], cutoffHour: 99 } });
     expect(c.schedule).toEqual({ timeZone: "Asia/Bangkok", cutoffHour: 24, workingDays: [1, 2, 3, 4, 5], holidays: ["2026-12-31"] });
