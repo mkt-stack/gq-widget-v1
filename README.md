@@ -12,8 +12,9 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 | Estimate delivery date | Checkout, under shipping options (Plus) | `extensions/checkout-delivery-estimate` | `/app/widgets/delivery` |
 | Membership callout | Checkout, above Pay now (Plus) | `extensions/checkout-member-callout` | `/app/widgets/callout` |
 | Guarantee row | Checkout, below Pay now (Plus) | `extensions/checkout-guarantee` | `/app/widgets/guarantee` |
+| Points earn callout | Checkout, above Pay now (Plus) | `extensions/checkout-points` | `/app/widgets/points` |
 
-**Ranked variants:** the countdown (up to 5), delivery rules (up to 5) and membership callouts (up to 3) are ranked lists. Each entry has its own conditions, and the first enabled entry that matches wins. If a higher entry is still waiting on product or customer facts, the widget waits rather than briefly showing a lower one. An entry with no conditions matches everyone, and the admin warns that entries below it never apply.
+**Ranked variants:** the countdown (up to 5), delivery rules (up to 5), points variants (up to 5) and membership callouts (up to 3) are ranked lists. Each entry has its own conditions, and the first enabled entry that matches wins. If a higher entry is still waiting on product or customer facts, the widget waits rather than briefly showing a lower one. An entry with no conditions matches everyone, and the admin warns that entries below it never apply.
 
 ### Checkout countdown
 
@@ -68,6 +69,23 @@ An up-arrow icon plus a short message (e.g. **กดรับสิทธิ์�
 - **Placement:**
   - `purchase.checkout.actions.render-before`, just above Pay now (recommended)
   - `purchase.checkout.block.render`, anywhere
+
+### Points earn callout
+
+Shows something like **"+ You will earn 236 points from this order"**, recalculated live as the cart changes.
+
+- **Calculation:** points are earned in whole steps of a base amount, e.g. ฿10 → 1 point, so ฿1,449 earns 144. The widget is hidden when an order earns 0 points. The base is one of:
+  - the cart subtotal
+  - the amount paid excluding shipping, after all discounts (total − shipping)
+- **Up to 5 ranked variants.** Each has its own rate, message (`{points}` token, plus EN), icon (plus by default, or an up arrow for "sign up above"), colour and conditions.
+- **Starter variants:**
+  1. Customers tagged `member`.
+  2. Everyone else, with a "sign up above" message.
+- **Not clickable:** checkout extensions can't scroll the page.
+- **Placement:** there is no target between the shipping line and the total line. Add only one of:
+  - `purchase.checkout.actions.render-before`, above Pay now (recommended)
+  - `purchase.checkout.reductions.render-after`, order summary under the discount code
+  - `purchase.checkout.block.render`
 
 ### Guarantee row
 
@@ -165,7 +183,7 @@ Production runs on Railway: project **modest-ambition** → service **gq-widget-
 4. **Registry:** add an entry in `app/widgets/registry.ts` and a nav link in `app/routes/app.tsx`.
 
 **Checkout limits to design for:**
-- Extensions are capped at 64 KB compiled. Each widget is about 29–33 KB.
+- Extensions are capped at 64 KB compiled. Each widget is about 29–34 KB.
 - No DOM access and no custom CSS. Only Polaris `s-*` components, which take the store's checkout branding.
 - Customer data needs protected-customer-data approval.
 - Any `fetch` needs `network_access` and must answer CORS (use `authenticate.public.checkout` / `authenticate.public.customerAccount`).

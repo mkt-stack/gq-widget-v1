@@ -3,10 +3,12 @@ import {
   COUNTDOWN_METAFIELD_KEY,
   DELIVERY_METAFIELD_KEY,
   GUARANTEE_METAFIELD_KEY,
+  POINTS_METAFIELD_KEY,
   normalizeCalloutConfig,
   normalizeCountdownConfig,
   normalizeDeliveryConfig,
   normalizeGuaranteeConfig,
+  normalizePointsConfig,
 } from "@gq/widget-core";
 
 /**
@@ -68,6 +70,16 @@ export const WIDGETS: WidgetDefinition[] = [
     metafieldKey: GUARANTEE_METAFIELD_KEY,
     extensionHandle: "checkout-guarantee",
     normalize: normalizeGuaranteeConfig,
+  },
+  {
+    id: "points",
+    name: "Points earn callout",
+    description:
+      "“+ You will earn 236 points from this order”, calculated live from the cart. Up to 5 ranked variants (rate, message, icon) by tag or login.",
+    surface: "checkout",
+    metafieldKey: POINTS_METAFIELD_KEY,
+    extensionHandle: "checkout-points",
+    normalize: normalizePointsConfig,
   },
 ];
 

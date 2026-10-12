@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  EXAMPLE_POINTS_VARIANTS,
+  calculatePoints,
+  formatPoints,
+  normalizePointsConfig,
+  pickPointsVariant,
+  pointsBaseAmount,
+  resolvePointsMessage,
   DEFAULT_COUNTDOWN_CONFIG,
   DEFAULT_GUARANTEE_CONFIG,
   EXAMPLE_CALLOUTS,
@@ -261,5 +268,29 @@ describe("guarantee row", () => {
     const [item] = DEFAULT_GUARANTEE_CONFIG.items;
     expect(resolveGuaranteeText(item, "en")).toEqual({ title: "Free exchange", subtitle: "up to 30 days" });
     expect(resolveGuaranteeText({ ...item, translations: { en: { title: "Swap" } } }, "en").subtitle).toBe(item.subtitle);
+  });
+});
+
+describe("points earn callout", () => {
+  it("calculates whole steps from the chosen base", () => {
+    expect(calculatePoints(1449, { spend: 10, points: 1 })).toBe(144);
+    expect(calculatePoints(2360, { spend: 10, points: 1 })).toBe(236);
+    expect(calculatePoints(1449, { spend: 100, points: 3 })).toBe(42);
+    expect(calculatePoints(0.3, { spend: 0.1, points: 1 })).toBe(3);
+    expect(calculatePoints(-5, { spend: 10, points: 1 })).toBe(0);
+    expect(pointsBaseAmount("subtotal", { subtotal: 1449, total: 1518, shipping: 69 })).toBe(1449);
+    expect(pointsBaseAmount("paid", { subtotal: 1449, total: 1278, shipping: 69 })).toBe(1209);
+    expect(pointsBaseAmount("paid", { subtotal: 1449, total: 1278 })).toBe(1278);
+    expect(formatPoints(12345)).toBe("12,345");
+  });
+
+  it("normalizes and ranks members above the catch-all non-member variant", () => {
+    const c = normalizePointsConfig({ enabled: true, base: "x", variants: [...EXAMPLE_POINTS_VARIANTS, { spend: -1, icon: "nope" }] });
+    expect(c.base).toBe("subtotal");
+    expect(c.variants[2]).toMatchObject({ spend: 10, points: 1, icon: "plus", tone: "success", name: "Variant 3" });
+    expect(normalizePointsConfig(c)).toEqual(c);
+    expect(pickPointsVariant(c, { ...ctx, customer: { loggedIn: true, tags: ["member"] } })?.id).toBe("member");
+    expect(pickPointsVariant(c, { ...ctx, customer: { loggedIn: false, tags: [] } })?.id).toBe("non-member");
+    expect(resolvePointsMessage(c.variants[0], "en")).toBe("You will earn {points} points from this order");
   });
 });

@@ -1,0 +1,37 @@
+# Points earn callout: "+ You will earn 236 points from this order", calculated
+# from the cart. Config (up to 5 ranked variants: rate, message, icon,
+# conditions) lives in the app-owned shop metafield declared below and is
+# edited in the app admin, so changes go live without redeploying.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Points Earn"
+handle = "checkout-points"
+type = "ui_extension"
+uid = "05df754a-c6b2-4030-c6a9-e40c689f2b90211ee0b5"
+
+# Directly above the Pay now button (recommended).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.actions.render-before"
+
+# Order summary, under the discount code field (closest spot to the totals;
+# nothing can render between shipping and the total line).
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.reductions.render-after"
+
+# Or place it anywhere in the checkout editor. Add only one of the three.
+[[extensions.targeting]]
+module = "./src/Checkout.tsx"
+target = "purchase.checkout.block.render"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_points"
+
+[extensions.capabilities]
+# Storefront API: product tags / collections for conditions.
+api_access = true
+# App backend: customer tag / login conditions (requires approval in the Dev Dashboard).
+network_access = true
