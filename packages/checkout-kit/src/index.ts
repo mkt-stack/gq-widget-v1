@@ -16,11 +16,19 @@ import {
  *   const api: CheckoutFactsApi = {
  *     query: (q, o) => shopify.query(q, o),
  *     getSessionToken: () => shopify.sessionToken.get(),
+ *     customerId: () => shopify.buyerIdentity?.customer.value?.id,
  *   };
  */
 export interface CheckoutFactsApi {
   query(query: string, options: { variables: Record<string, unknown> }): Promise<unknown>;
   getSessionToken(): Promise<string>;
+  /**
+   * The logged-in customer's GID, read from a checkout signal so the hook
+   * re-renders and re-fetches customer facts when the buyer signs in or out.
+   * `undefined` for guests, and always `undefined` without protected customer
+   * data access (then facts are fetched once per checkout load).
+   */
+  customerId?(): string | undefined;
 }
 
 interface AppMetafieldEntryLike {
@@ -70,7 +78,8 @@ export function selectedDeliveryOptions(groups: readonly DeliveryGroupLike[]): A
 /**
  * Builds the condition context, fetching the expensive facts only when
  * `needs` asks for them: product tags/collections via the Storefront API
- * (per distinct product set) and customer tags via the app backend (once).
+ * (per distinct product set) and customer tags/segments via the app backend
+ * (again whenever the signed-in customer changes).
  * Missing facts stay `undefined` until loaded, so rules can short-circuit.
  */
 export function useConditionContext(
@@ -81,6 +90,8 @@ export function useConditionContext(
 ): ConditionContext {
   const productKey = [...new Set(base.lines.map((l) => l.productId))].sort().join(",");
   const tagKey = needs?.customerTags.join(",") ?? "";
+  const segmentKey = needs?.customerSegments.join(",") ?? "";
+  const customerKey = readCustomerId(api);
   const wantsProducts = Boolean(needs?.productFacts);
   const wantsCustomer = Boolean(needs?.customer);
 
@@ -101,15 +112,28 @@ export function useConditionContext(
   useEffect(() => {
     if (!wantsCustomer) return;
     let cancelled = false;
-    fetchCustomerFacts(api, endpoint, tagKey ? tagKey.split(",") : []).then((facts) => {
-      if (!cancelled) setCustomer(facts);
-    });
+    // Drop stale facts so a variant for the previous identity never lingers.
+    setCustomer(undefined);
+    fetchCustomerFacts(api, endpoint, tagKey ? tagKey.split(",") : [], segmentKey ? segmentKey.split(",") : []).then(
+      (facts) => {
+        if (!cancelled) setCustomer(facts);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [api, wantsCustomer, tagKey, endpoint]);
+  }, [api, wantsCustomer, tagKey, segmentKey, endpoint, customerKey]);
 
   return { ...base, products, customer };
+}
+
+/** Never throws: the buyerIdentity API is absent without protected customer data access. */
+function readCustomerId(api: CheckoutFactsApi): string {
+  try {
+    return api.customerId?.() ?? "";
+  } catch {
+    return "";
+  }
 }
 
 const PRODUCT_FACTS_QUERY = `query ProductFacts($ids: [ID!]!) {
@@ -139,28 +163,33 @@ async function fetchProductFacts(api: CheckoutFactsApi, ids: string[]): Promise<
 }
 
 /**
- * Customer tags aren't exposed to checkout, so the app backend looks them up
- * using the customer GID from the verified session token. Only the tags the
- * rules ask about come back. On failure we treat the buyer as a guest with no
+ * Customer tags and segments aren't exposed to checkout, so the app backend
+ * looks them up using the customer GID from the verified session token. Only
+ * the tags and segments the rules ask about come back. On failure we treat the buyer as a guest with no
  * tags, so "includes any" rules fail and "includes none" rules pass.
  */
 async function fetchCustomerFacts(
   api: CheckoutFactsApi,
   endpoint: string | undefined,
   tags: string[],
+  segments: string[],
 ): Promise<CustomerFacts> {
-  const fallback: CustomerFacts = { loggedIn: false, tags: [] };
+  const fallback: CustomerFacts = { loggedIn: false, tags: [], segments: [] };
   if (!endpoint) return fallback;
   try {
     const token = await api.getSessionToken();
     const res = await fetch(`${endpoint}${CUSTOMER_FACTS_PATH}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ tags }),
+      body: JSON.stringify({ tags, segments }),
     });
     if (!res.ok) return fallback;
     const body = (await res.json()) as Partial<CustomerFacts>;
-    return { loggedIn: body.loggedIn === true, tags: Array.isArray(body.tags) ? body.tags : [] };
+    return {
+      loggedIn: body.loggedIn === true,
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      segments: Array.isArray(body.segments) ? body.segments : [],
+    };
   } catch {
     return fallback;
   }

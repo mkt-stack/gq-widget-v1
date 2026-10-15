@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import {
   CONDITION_TYPES,
@@ -8,6 +10,7 @@ import {
   type DisplayRules,
 } from "@gq/widget-core";
 import { inputValue } from "./form-utils";
+import type { loader as segmentsLoader } from "../routes/app.api.segments";
 
 interface Props {
   rules: DisplayRules;
@@ -36,6 +39,14 @@ export function ConditionBuilder({
 }: Props) {
   const shopify = useAppBridge();
   const allowed = types ?? (Object.keys(CONDITION_TYPES) as ConditionType[]);
+
+  // Load the shop's segments once, only when a segment condition is on screen.
+  const segmentsFetcher = useFetcher<typeof segmentsLoader>();
+  const usesSegments = rules.conditions.some((c) => c.type === "customer_segment");
+  useEffect(() => {
+    if (usesSegments && segmentsFetcher.state === "idle" && !segmentsFetcher.data) segmentsFetcher.load("/app/api/segments");
+  }, [usesSegments, segmentsFetcher]);
+  const segments = segmentsFetcher.data?.segments ?? [];
 
   const update = (id: string, patch: Partial<Condition>) =>
     onChange({
@@ -175,6 +186,43 @@ export function ConditionBuilder({
                 />
               )}
 
+              {c.type === "customer_segment" && (
+                <s-stack gap="small-200">
+                  {segmentsFetcher.state !== "idle" && !segmentsFetcher.data ? (
+                    <s-spinner accessibilityLabel="Loading customer segments" size="base" />
+                  ) : segments.length === 0 ? (
+                    <s-text tone="caution">
+                      {segmentsFetcher.data?.error ?? "No customer segments yet. Create one in Customers → Segments."}
+                    </s-text>
+                  ) : (
+                    <s-choice-list
+                      label="Segments"
+                      labelAccessibilityVisibility="exclusive"
+                      multiple
+                      onChange={(e) => {
+                        const ids = (e.currentTarget as unknown as { values?: string[] }).values ?? [];
+                        const names = Object.fromEntries(segments.map((s) => [s.id, s.name]));
+                        update(c.id, {
+                          values: ids,
+                          labels: Object.fromEntries(ids.map((id) => [id, names[id] ?? c.labels?.[id] ?? id])),
+                        });
+                      }}
+                    >
+                      {segments.map((s) => (
+                        <s-choice key={s.id} value={s.id} selected={c.values.includes(s.id)}>
+                          {s.name}
+                        </s-choice>
+                      ))}
+                    </s-choice-list>
+                  )}
+                  {c.values
+                    .filter((id) => segmentsFetcher.data && !segments.some((s) => s.id === id))
+                    .map((id) => (
+                      <s-text key={id} tone="caution">{`"${c.labels?.[id] ?? id}" no longer exists; reselect segments to remove it.`}</s-text>
+                    ))}
+                </s-stack>
+              )}
+
               {(c.type === "subtotal" || c.type === "item_count") && (
                 <s-number-field
                   label={c.type === "subtotal" ? "Amount" : "Quantity"}
@@ -190,6 +238,11 @@ export function ConditionBuilder({
               {c.type === "customer_tag" && (
                 <s-text color="subdued">
                   Guests have no tags. Checked securely through the app backend.
+                </s-text>
+              )}
+              {c.type === "customer_segment" && (
+                <s-text color="subdued">
+                  Guests are in no segment. Membership is checked live through the app backend.
                 </s-text>
               )}
               {missingValues && (

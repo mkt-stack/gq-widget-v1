@@ -19,6 +19,7 @@ import {
 const api: CheckoutFactsApi = {
   query: (query, options) => shopify.query(query, options),
   getSessionToken: () => shopify.sessionToken.get(),
+  customerId: () => shopify.buyerIdentity?.customer.value?.id,
 };
 
 export default function extension() {

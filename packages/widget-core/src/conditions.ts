@@ -16,6 +16,7 @@ export type ConditionType =
   | "subtotal"
   | "item_count"
   | "customer_tag"
+  | "customer_segment"
   | "customer_status"
   | "shipping_method";
 
@@ -35,7 +36,7 @@ export interface Condition {
   id: string;
   type: ConditionType;
   operator: ConditionOperator;
-  /** Product/collection GIDs, or tag strings, depending on `type`. */
+  /** Product/collection/segment GIDs, or tag strings, depending on `type`. */
   values: string[];
   /** Threshold for `subtotal` (shop currency) and `item_count`. */
   number?: number;
@@ -64,6 +65,8 @@ export interface CustomerFacts {
   loggedIn: boolean;
   /** Only the tags that were asked about and that the customer has. */
   tags: string[];
+  /** Only the segment GIDs that were asked about and that the customer is in. */
+  segments?: string[];
 }
 
 export interface ConditionContext {
@@ -82,6 +85,8 @@ export interface ConditionRequirements {
   customer: boolean;
   /** Customer tags to ask the backend about (lower-cased, de-duplicated). */
   customerTags: string[];
+  /** Customer segment GIDs to ask the backend about (de-duplicated). */
+  customerSegments: string[];
 }
 
 export const CONDITION_TYPES: Record<
@@ -94,6 +99,7 @@ export const CONDITION_TYPES: Record<
   subtotal: { label: "Cart subtotal", operators: ["gte", "lte"] },
   item_count: { label: "Cart item quantity", operators: ["gte", "lte"] },
   customer_tag: { label: "Customer tag", operators: ["any", "none"] },
+  customer_segment: { label: "Customer segment", operators: ["any", "none"] },
   customer_status: { label: "Customer status", operators: ["logged_in", "guest"] },
   shipping_method: { label: "Selected shipping method name", operators: ["any", "none"] },
 };
@@ -112,14 +118,16 @@ const norm = (s: string) => s.trim().toLowerCase();
 /** Pass several rule sets (e.g. ranked rules) to get what any of them needs. */
 export function conditionRequirements(...ruleSets: DisplayRules[]): ConditionRequirements {
   const tags = new Set<string>();
+  const segments = new Set<string>();
   let productFacts = false;
   let customer = false;
   for (const c of ruleSets.flatMap((r) => r.conditions)) {
     if (c.type === "product_tag" || c.type === "collection") productFacts = true;
-    if (c.type === "customer_tag" || c.type === "customer_status") customer = true;
+    if (c.type === "customer_tag" || c.type === "customer_segment" || c.type === "customer_status") customer = true;
     if (c.type === "customer_tag") c.values.forEach((v) => tags.add(norm(v)));
+    if (c.type === "customer_segment") c.values.forEach((v) => segments.add(v));
   }
-  return { productFacts, customer, customerTags: [...tags] };
+  return { productFacts, customer, customerTags: [...tags], customerSegments: [...segments] };
 }
 
 /** `undefined` means "not decidable yet" (facts still loading). */
@@ -159,6 +167,11 @@ function evaluateOne(c: Condition, ctx: ConditionContext): boolean | undefined {
       if (!ctx.customer) return undefined;
       const have = new Set(ctx.customer.tags.map(norm));
       return listMatch(c.values.some((v) => have.has(norm(v))));
+    }
+    case "customer_segment": {
+      if (!ctx.customer) return undefined;
+      const have = new Set(ctx.customer.segments ?? []);
+      return listMatch(c.values.some((v) => have.has(v)));
     }
     case "customer_status":
       if (!ctx.customer) return undefined;

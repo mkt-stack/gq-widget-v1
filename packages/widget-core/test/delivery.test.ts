@@ -124,8 +124,8 @@ describe("delivery rules", () => {
   });
 
   it("only asks for facts that enabled rules need", () => {
-    expect(deliveryRequirements(config)).toEqual({ productFacts: true, customer: true, customerTags: ["vip"] });
-    expect(deliveryRequirements({ ...config, rules: [] })).toEqual({ productFacts: false, customer: false, customerTags: [] });
+    expect(deliveryRequirements(config)).toEqual({ productFacts: true, customer: true, customerTags: ["vip"], customerSegments: [] });
+    expect(deliveryRequirements({ ...config, rules: [] })).toEqual({ productFacts: false, customer: false, customerTags: [], customerSegments: [] });
   });
 
   it("resolves messages: rule language → widget language → rule default → widget default", () => {

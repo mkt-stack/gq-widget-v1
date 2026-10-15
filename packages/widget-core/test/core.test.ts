@@ -95,6 +95,20 @@ describe("evaluateRules", () => {
     expect(evaluateRules(guestRule, guest)).toBe(true);
     expect(evaluateRules(guestRule, vip)).toBe(false);
   });
+
+  it("evaluates customer segments by GID", () => {
+    const seg = "gid://shopify/Segment/1";
+    const inSeg = { ...ctx, customer: { loggedIn: true, tags: [], segments: [seg] } };
+    const guest = { ...ctx, customer: { loggedIn: false, tags: [] } };
+    const any = rules("all", { id: "a", type: "customer_segment", operator: "any", values: [seg] });
+    const none = rules("all", { id: "a", type: "customer_segment", operator: "none", values: [seg] });
+    expect(evaluateRules(any, ctx)).toBeUndefined();
+    expect(evaluateRules(any, inSeg)).toBe(true);
+    expect(evaluateRules(any, guest)).toBe(false);
+    expect(evaluateRules(none, inSeg)).toBe(false);
+    expect(evaluateRules(none, guest)).toBe(true);
+    expect(conditionRequirements(any)).toMatchObject({ customer: true, customerSegments: [seg] });
+  });
 });
 
 describe("conditionRequirements", () => {
@@ -103,6 +117,7 @@ describe("conditionRequirements", () => {
       productFacts: false,
       customer: false,
       customerTags: [],
+      customerSegments: [],
     });
     const r = conditionRequirements(
       rules(
@@ -111,7 +126,7 @@ describe("conditionRequirements", () => {
         { id: "b", type: "customer_tag", operator: "any", values: ["VIP", "vip", "Staff"] },
       ),
     );
-    expect(r).toEqual({ productFacts: true, customer: true, customerTags: ["vip", "staff"] });
+    expect(r).toEqual({ productFacts: true, customer: true, customerTags: ["vip", "staff"], customerSegments: [] });
   });
 });
 
@@ -228,7 +243,7 @@ describe("membership callout", () => {
     expect(pickCallout(config, { ...ctx, customer: { loggedIn: true, tags: [] } })?.id).toBe("non-member");
     const members = normalizeCalloutConfig({ callouts: EXAMPLE_CALLOUTS });
     expect(pickCallout(members, { ...ctx, customer: { loggedIn: true, tags: ["Member"] } })).toBeNull();
-    expect(calloutRequirements(members)).toEqual({ productFacts: false, customer: true, customerTags: ["member"] });
+    expect(calloutRequirements(members)).toEqual({ productFacts: false, customer: true, customerTags: ["member"], customerSegments: [] });
   });
 
   it("resolves the message per language", () => {

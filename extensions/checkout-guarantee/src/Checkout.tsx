@@ -20,6 +20,7 @@ import {
 const api: CheckoutFactsApi = {
   query: (query, options) => shopify.query(query, options),
   getSessionToken: () => shopify.sessionToken.get(),
+  customerId: () => shopify.buyerIdentity?.customer.value?.id,
 };
 
 export default function extension() {
@@ -27,10 +28,17 @@ export default function extension() {
 }
 
 /**
- * Up to 3 equal, top-aligned columns. Each is a vertical stack: a fixed-size
- * square slot (Shopify icon or uploaded image), then title, then subtitle, so
- * titles line up across columns whatever the icon. Optional subtle card:
- * subdued background + large rounded corners, around the row or each column.
+ * Narrow (mobile) layouts: text wraps unevenly, so columns are centred
+ * vertically there. Wider layouts stay top-aligned so titles line up.
+ * Resolved against the nearest container (the row), not the viewport.
+ */
+const MOBILE_CENTER = "@container (inline-size <= 480px) center, start" as const;
+
+/**
+ * Up to 3 equal columns. Each is a vertical stack: a fixed-size square slot
+ * (Shopify icon or uploaded image), then title, then subtitle, so titles line
+ * up across columns whatever the icon. Optional subtle card: subdued
+ * background + large rounded corners, around the row or each column.
  */
 function GuaranteeRow() {
   const config = useWidgetConfig(shopify.appMetafields.value, GUARANTEE_METAFIELD_KEY, normalizeGuaranteeConfig);
@@ -57,7 +65,8 @@ function GuaranteeRow() {
     <s-grid
       gridTemplateColumns={config.items.map(() => "1fr").join(" ")}
       gap={columnCards ? "small-200" : "base"}
-      alignItems={columnCards ? "stretch" : "start"}
+      // Column cards stay equal height; their content is centred inside instead.
+      alignItems={columnCards ? "stretch" : MOBILE_CENTER}
       paddingBlock={config.card === "none" ? "small-200" : undefined}
     >
       {config.items.map((item) => {
@@ -67,6 +76,7 @@ function GuaranteeRow() {
             key={item.id}
             direction="block"
             alignItems="center"
+            justifyContent={columnCards ? MOBILE_CENTER : undefined}
             gap="small-200"
             background={columnCards ? "subdued" : undefined}
             borderRadius={columnCards ? "large" : undefined}
