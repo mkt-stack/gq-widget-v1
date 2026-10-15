@@ -89,11 +89,16 @@ function GuaranteeRow() {
                 <s-icon type={item.icon} size={size.icon} />
               )}
             </s-stack>
-            {title ? <s-text type="strong">{title}</s-text> : null}
+            {/* Paragraphs, not bare text: wrapped lines (narrow columns, Thai copy) stay centred. */}
+            {title ? (
+              <s-paragraph textAlign="center">
+                <s-text type="strong">{title}</s-text>
+              </s-paragraph>
+            ) : null}
             {subtitle ? (
-              <s-text type="small" color="subdued">
+              <s-paragraph type="small" color="subdued" textAlign="center">
                 {subtitle}
-              </s-text>
+              </s-paragraph>
             ) : null}
           </s-stack>
         );

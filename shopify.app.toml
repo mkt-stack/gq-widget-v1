@@ -2,7 +2,7 @@
 # Linked app: gq-widget-v1 (Dev Dashboard). Hosted on Railway:
 # project modest-ambition → service gq-widget-v1 (mkt@suparagroup.com).
 client_id = "7aab72fb41edd5d4aecf3f24940be5f9"
-name = "gq-widget-v1"
+name = "GQ Widget V1"
 application_url = "https://gq-widget-v1-production.up.railway.app"
 embedded = true
 
