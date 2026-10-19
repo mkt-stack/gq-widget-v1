@@ -24,6 +24,7 @@ export default function App() {
         <s-link href="/app/widgets/callout">Membership callout</s-link>
         <s-link href="/app/widgets/guarantee">Guarantee row</s-link>
         <s-link href="/app/widgets/points">Points earn callout</s-link>
+        <s-link href="/app/widgets/referral">Referral thank-you</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

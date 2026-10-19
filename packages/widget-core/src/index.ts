@@ -7,6 +7,7 @@ export * from "./delivery";
 export * from "./callout";
 export * from "./guarantee";
 export * from "./points";
+export * from "./referral";
 
 /** Every widget stores its config in a shop metafield under this app-owned namespace. */
 export const WIDGET_METAFIELD_NAMESPACE = "$app";

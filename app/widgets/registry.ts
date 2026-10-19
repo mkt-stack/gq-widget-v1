@@ -4,11 +4,13 @@ import {
   DELIVERY_METAFIELD_KEY,
   GUARANTEE_METAFIELD_KEY,
   POINTS_METAFIELD_KEY,
+  REFERRAL_METAFIELD_KEY,
   normalizeCalloutConfig,
   normalizeCountdownConfig,
   normalizeDeliveryConfig,
   normalizeGuaranteeConfig,
   normalizePointsConfig,
+  normalizeReferralConfig,
 } from "@gq/widget-core";
 
 /**
@@ -80,6 +82,16 @@ export const WIDGETS: WidgetDefinition[] = [
     metafieldKey: POINTS_METAFIELD_KEY,
     extensionHandle: "checkout-points",
     normalize: normalizePointsConfig,
+  },
+  {
+    id: "referral",
+    name: "Referral thank-you",
+    description:
+      "Bloop referral card on the thank-you page: both rewards, the buyer's referral link with copy and share buttons, and their referral code.",
+    surface: "thank-you",
+    metafieldKey: REFERRAL_METAFIELD_KEY,
+    extensionHandle: "thankyou-referral",
+    normalize: normalizeReferralConfig,
   },
 ];
 

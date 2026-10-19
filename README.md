@@ -13,6 +13,7 @@ A custom Shopify app for gqsize.com that holds GQ's own checkout and customer-ac
 | Membership callout | Checkout, above Pay now (Plus) | `extensions/checkout-member-callout` | `/app/widgets/callout` |
 | Guarantee row | Checkout, below Pay now (Plus) | `extensions/checkout-guarantee` | `/app/widgets/guarantee` |
 | Points earn callout | Checkout, above Pay now (Plus) | `extensions/checkout-points` | `/app/widgets/points` |
+| Referral thank-you | Thank you page | `extensions/thankyou-referral` | `/app/widgets/referral` |
 
 **Ranked variants:** the countdown (up to 5), delivery rules (up to 5), points variants (up to 5) and membership callouts (up to 3) are ranked lists. Each entry has its own conditions, and the first enabled entry that matches wins. If a higher entry is still waiting on product or customer facts, the widget waits rather than briefly showing a lower one. An entry with no conditions matches everyone, and the admin warns that entries below it never apply.
 
@@ -103,6 +104,32 @@ Up to 3 equal columns, each with a centred icon, a title and an optional subtitl
   - `purchase.checkout.footer.render-after`, under Pay now and the policy links (recommended)
   - `purchase.checkout.block.render`, anywhere
 
+### Referral thank-you (Bloop)
+
+A referral card on the thank-you page, built from the "recommended" design in the GQ Referral Thank-you Widget canvas. It has:
+
+- an eyebrow, a heading and a body
+- two reward tiles: what the friend gets and what the buyer gets
+- the buyer's referral link, with a **Copy link** button
+- share buttons for LINE, Facebook and email
+- a collapsible **use a referral code instead** section
+- "Powered by BLOOP"
+
+**Where each part comes from:**
+- **Copy** is in the widget config (TH, plus EN overrides). Any field can use `{friend_reward}`, `{your_reward}`, `{link}` and `{code}`.
+- **Program details** (both rewards, the link and the code) come from **Bloop**. The extension calls `POST /api/storefront/referral` with the session token and the order ID. The backend calls Bloop (`app/referral/bloop.server.ts`), so the Bloop credentials stay on the server.
+
+**Bloop is not connected yet.** Until `BLOOP_API_KEY` is set, the endpoint returns sample data (`source: "sample"`), and the widget shows it only in the checkout editor. Buyers see nothing. The `TODO(bloop)` notes in `bloop.server.ts` list what is left: the API call, mapping the response, guest lookup, and verifying the order.
+
+**Placement:** add only one of:
+- `purchase.thank-you.block.render`, anywhere on the thank-you page (recommended)
+- `purchase.thank-you.customer-information.render-after`
+
+**Limits:**
+- Copy uses Shopify's clipboard component.
+- The share buttons open LINE's share URL, Facebook's sharer, and `mailto:` in a new tab.
+- Colours follow checkout branding. The eyebrow uses the critical (red) tone.
+
 ## Architecture
 
 ```
@@ -160,6 +187,7 @@ Production runs on Railway: project **modest-ambition** → service **gq-widget-
   - `SHOPIFY_APP_URL`: the URL above
   - `SCOPES`: same as the toml (`read_products,read_customers,write_files,read_files`)
   - `DATABASE_URL`: `${{Postgres.DATABASE_URL}}`
+  - `BLOOP_API_KEY` (not set yet): turns on live Bloop data for the referral widget
 - **Database:** Prisma uses the project's Postgres, which only stores sessions. Migrations run at startup (`npm run docker-start`).
 - **If the URL changes:**
   1. Update `SHOPIFY_APP_URL`, plus `application_url` and `redirect_urls` in the toml.

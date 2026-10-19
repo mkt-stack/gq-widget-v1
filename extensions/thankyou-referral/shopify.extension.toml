@@ -1,0 +1,28 @@
+# Referral card on the thank-you page (Bloop referral program).
+# Copy lives in the app-owned shop metafield declared below and is edited in
+# the app admin. The program details (rewards, link, code) are fetched from the
+# app backend, which talks to Bloop, so Bloop credentials stay server-side.
+api_version = "2026-07"
+
+[[extensions]]
+name = "GQ Referral Thank-you"
+handle = "thankyou-referral"
+type = "ui_extension"
+
+# Place it anywhere on the thank-you page in the checkout editor (recommended).
+[[extensions.targeting]]
+module = "./src/ThankYou.tsx"
+target = "purchase.thank-you.block.render"
+
+# Or a fixed spot under the customer information. Add only one of the two.
+[[extensions.targeting]]
+module = "./src/ThankYou.tsx"
+target = "purchase.thank-you.customer-information.render-after"
+
+[[extensions.metafields]]
+namespace = "$app"
+key = "widget_referral"
+
+[extensions.capabilities]
+# App backend: referral program lookup (Bloop).
+network_access = true
