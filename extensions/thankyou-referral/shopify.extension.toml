@@ -3,6 +3,7 @@
 # the app admin. The program details (rewards, link, code) are fetched from the
 # app backend, which talks to Bloop, so Bloop credentials stay server-side.
 api_version = "2026-07"
+uid = "9ca92bba-a8bf-d4cb-1ea2-1d5ca753668dc8dccc7d"
 
 [[extensions]]
 name = "GQ Referral Thank-you"
